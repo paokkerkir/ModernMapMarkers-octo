@@ -98,7 +98,7 @@ local lastZone      = nil
 local forceRefresh  = false
 
 -- Textures
-local TEX_BASE = "Interface\\AddOns\\ModernMapMarkers\\Textures\\"
+local TEX_BASE = "Interface\\AddOns\\ModernMapMarkers-octo\\Textures\\"
 local TEXTURE_MAP = {
     DUNGEON   = TEX_BASE .. "dungeon.tga",
     RAID      = TEX_BASE .. "raid.tga",
@@ -158,6 +158,9 @@ function MMM:BuildData()
                     name        = m.name,
                     type        = typeUpper,
                     description = m.info,
+                    atlasID     = m.atlasID,
+                    dest        = m.dest,
+                    dest2       = m.dest2,
                     id          = index
                 }
 
@@ -316,6 +319,9 @@ function MMM:RefreshMarkers()
                 marker.markerType  = data.type
                 marker.continent   = data.continent
                 marker.zoneName    = data.zoneName
+                marker.atlasID     = data.atlasID
+                marker.dest        = data.dest
+                marker.dest2       = data.dest2
 
                 marker:Show()
             end
@@ -355,30 +361,40 @@ function MMM:GetIJInstance(nameEN)
     return dbTable[mapping.key]
 end
 
--- InstanceJournal Integration
+-- Atlas-TW Integration
 function MMM:OnMarkerClick(marker, button)
-    if not MMM.ijInstalled then return end
-
-    local instance = MMM:GetIJInstance(marker.nameEN)
-    if not instance then return end
-
-    if button == "RightButton" then
-        -- Right-click: open IJ journal page
-        if not IJ_InstanceJournalFrame:IsShown() then
-            IJ_InstanceJournalFrame:Show()
+    -- Dungeons, raids, world bosses: open Atlas-TW
+    local atlasKey = marker.atlasID
+    if atlasKey then
+        if not AtlasTW or not AtlasTWOptions or not AtlasTW.DropDowns then return end
+        for typeIdx, zoneList in pairs(AtlasTW.DropDowns) do
+            for zoneIdx, key in pairs(zoneList) do
+                if key == atlasKey then
+                    AtlasTWOptions.AtlasType = typeIdx
+                    AtlasTWOptions.AtlasZone = zoneIdx
+                    AtlasTW.FrameDropDownTypeOnShow()
+                    AtlasTW.FrameDropDownOnShow()
+                    AtlasTW.Refresh()
+                    AtlasFrame:SetFrameStrata("FULLSCREEN")
+                    AtlasFrame:Show()
+                    return
+                end
+            end
         end
-        if instance.Type == IJLib.InstanceType.Raid then
-            IJ_ShowRaids = true
-            PanelTemplates_SetTab(IJ_InstanceJournalFrame, 2)
-        else
-            IJ_ShowRaids = false
-            PanelTemplates_SetTab(IJ_InstanceJournalFrame, 1)
+        return
+    end
+
+    -- Transport: navigate world map to destination zone
+    local dest = marker.dest
+    if dest then
+        local target = dest
+        if button == "RightButton" and marker.dest2 then
+            target = marker.dest2
         end
-        IJ_ShowEncounter(instance)
-        WorldMapFrame:Hide()
-    else
-        -- Left-click: navigate to instance submap
-        SetMapZoom(tonumber(instance.MapId), 1)
+        local zoneIndex = MMM:GetZoneIndex(target[1], target[2])
+        if zoneIndex > 0 then
+            SetMapZoom(target[1], zoneIndex)
+        end
     end
 end
 
@@ -414,10 +430,16 @@ function MMM:GetOrCreateMarker(index)
                 end
             end
 
-            -- IJ tooltips for dungeon/raid markers
-            if MMM.ijInstalled and MMM:GetIJInstance(this.nameEN) then
-                WorldMapTooltip:AddLine(L:GetLocalizedMarkerName("Left-Click: View Map"), 0.5, 0.5, 0.5)
-                WorldMapTooltip:AddLine(L:GetLocalizedMarkerName("Right-Click: Instance Journal"), 0.5, 0.5, 0.5)
+            -- Click hints
+            if this.atlasID and AtlasTW then
+                WorldMapTooltip:AddLine("Click: Atlas", 0.5, 0.5, 0.5)
+            elseif this.dest then
+                if this.dest2 then
+                    WorldMapTooltip:AddLine("Left-click: " .. this.dest[2], 0.5, 0.5, 0.5)
+                    WorldMapTooltip:AddLine("Right-click: " .. this.dest2[2], 0.5, 0.5, 0.5)
+                else
+                    WorldMapTooltip:AddLine("Click: Navigate to destination", 0.5, 0.5, 0.5)
+                end
             end
 
             WorldMapTooltip:Show()
