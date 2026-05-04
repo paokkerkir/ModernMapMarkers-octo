@@ -1,7 +1,7 @@
 # ModernMapMarkers for Octo
 Places markers on the world map to show the locations of dungeons, raids, world bosses, boats, zeppelins, and trams. 
 
-Supports only EnUs. Please feel free to submit any corrections.
+Supports only EnUS client. Please feel free to submit any corrections.
 
 ## Features
 
