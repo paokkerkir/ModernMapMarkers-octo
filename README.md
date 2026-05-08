@@ -5,7 +5,7 @@ Supports only EnUS client. Please feel free to submit any corrections.
 
 ## Features
 
-**Dungeon, Raid, and World Boss Markers –** Shows where every instance entrance and world boss is located on the world map with [Atlas support](https://github.com/byCFM2/Atlas-TW/tree/6bce50abe831d632e2cd4736d7124b4483cdb2c8).
+**Dungeon, Raid, and World Boss Markers –** Shows where every instance entrance and world boss is located on the world map with [Atlas support](https://github.com/byCFM2/Atlas-TW/tree/1.17.2).
 
 **Transport Markers –** Boats, zeppelins, and even the Deeprun Tram are marked on the world map. Navigate to destination on click.
 
