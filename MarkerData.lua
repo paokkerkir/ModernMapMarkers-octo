@@ -4,8 +4,6 @@
 -- atlasID: Atlas-TW string map key, nil for transport or unmapped entries
 -- dest: {continent, zoneName} destination for transport markers, nil otherwise
 -- Marker data ported from TWoW DB 1.17.2 (1172 build)
--- New 1.17.2 instances added: FrostmaneHollow, DragonmawRetreat, WindhornCanyon, StormwroughtRuins
--- NOTE: coordinates for these four are estimated from zone geography -- verify in-game
 ModernMapMarkers_Points = {
     [1] = { -- Kalimdor
         ["Ashenvale"] = {
@@ -68,9 +66,6 @@ ModernMapMarkers_Points = {
             { x=0.472, y=0.327, name="Wailing Caverns",   type="dungeon", info="17-24",  atlasID="WailingCaverns", dest=nil                          },
             { x=0.636, y=0.389, name="Boat to Booty Bay", type="boat",    info="Neutral", atlasID=nil,             dest={2, "Stranglethorn Vale"}    },
         },
-        ["Thousand Needles"] = {
-            { x=0.68, y=0.50, name="Windhorn Canyon", type="dungeon", info="26-30", atlasID="WindhornCanyon", dest=nil },
-        },
         ["Thunder Bluff"] = {
             { x=0.165, y=0.230, name="Zeppelin to Orgrimmar", type="zepp", info="Horde", atlasID=nil, dest={1, "Durotar"} },
         },
@@ -78,10 +73,6 @@ ModernMapMarkers_Points = {
     [2] = { -- Eastern Kingdoms
         ["Alah'Thalas"] = {
             { x=0.531, y=0.047, name="Boat to Auberdine", type="boat", info="Alliance", atlasID=nil, dest={1, "Darkshore"} },
-        },
-        ["Balor"] = {
-            { x=0.450, y=0.300, name="Stormwrought Ruins",                type="dungeon", info="35-42", atlasID="StormwroughtRuins", dest=nil },
-            { x=0.560, y=0.450, name="Stormwrought Ruins - Back Entrance", type="dungeon", info="35-42", atlasID="StormwroughtRuins", dest=nil },
         },
         ["Badlands"] = {
             { x=0.429, y=0.130, name="Uldaman - Main Entrance", type="dungeon", info="41-51", atlasID="Uldaman", dest=nil          },
@@ -106,8 +97,7 @@ ModernMapMarkers_Points = {
             { x=0.471, y=0.751, name="Dark Reaver of Karazhan", type="worldboss", info="60",    atlasID="Reaver",          dest=nil },
         },
         ["Dun Morogh"] = {
-            { x=0.248, y=0.337, name="Gnomeregan",      type="dungeon", info="29-38", atlasID="Gnomeregan",      dest=nil },
-            { x=0.630, y=0.350, name="Frostmane Hollow", type="dungeon", info="13-20", atlasID="FrostmaneHollow", dest=nil },
+            { x=0.248, y=0.337, name="Gnomeregan", type="dungeon", info="29-38", atlasID="Gnomeregan", dest=nil },
         },
         ["Duskwood"] = {
             { x=0.465, y=0.357, name="Emerald Dragon - Spawn Point 3 of 4", type="worldboss", info="60", atlasID="FourDragons", dest=nil },
@@ -169,9 +159,7 @@ ModernMapMarkers_Points = {
             { x=0.423, y=0.726, name="The Deadmines", type="dungeon", info="17-24", atlasID="TheDeadmines", dest=nil },
         },
         ["Wetlands"] = {
-            { x=0.068, y=0.613, name="Boat to Theramore Isle",       type="boat",    info="Alliance", atlasID=nil,               dest={1, "Dustwallow Marsh"} },
-            { x=0.830, y=0.680, name="Dragonmaw Retreat",            type="dungeon", info="27-33",    atlasID="DragonmawRetreat", dest=nil },
-            { x=0.845, y=0.700, name="Dragonmaw Retreat - Back Entrance", type="dungeon", info="27-33", atlasID="DragonmawRetreat", dest=nil },
+            { x=0.068, y=0.613, name="Boat to Theramore Isle", type="boat", info="Alliance", atlasID=nil, dest={1, "Dustwallow Marsh"} },
         },
     }
 }
