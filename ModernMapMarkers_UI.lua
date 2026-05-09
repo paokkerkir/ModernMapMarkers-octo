@@ -91,8 +91,8 @@ function MMM_GUI.InitializeWorldMapControls()
     local dropdownWidth = math.max(MIN_DROPDOWN_WIDTH, longestLabel * 7 + PADDING)
     local dropdownButtonWidth = dropdownWidth + 5
     
-    if _G.pfQuestMapDropdown then
-        dropdownParent = _G.pfQuestMapDropdown:GetParent() or dropdownParent
+    if pfQuestMapDropdown then
+        dropdownParent = pfQuestMapDropdown:GetParent() or dropdownParent
     end
 
     -- Filter Dropdown
@@ -105,8 +105,8 @@ function MMM_GUI.InitializeWorldMapControls()
     if filterBtn then filterBtn:SetFrameLevel(filterFrame:GetFrameLevel() + 2) end
 
     -- Positioning
-    if _G.pfQuestMapDropdown then
-        filterFrame:SetPoint("TOPRIGHT", _G.pfQuestMapDropdown, "BOTTOMRIGHT", 0, 0)
+    if pfQuestMapDropdown then
+        filterFrame:SetPoint("TOPRIGHT", pfQuestMapDropdown, "BOTTOMRIGHT", 0, 0)
     else
         filterFrame:SetPoint("TOPRIGHT", WorldMapFrame, "TOPRIGHT", -10, -40)
     end
@@ -470,17 +470,17 @@ function MMM_GUI.InitializeWorldMapControls()
     UpdateButtonStates()
 
     -- pfUI Skinning
-    if isPfUI and _G.pfUI and _G.pfUI.api then
-        if _G.pfUI.api.SkinDropDown then
-            _G.pfUI.api.SkinDropDown(filterFrame)
-            _G.pfUI.api.SkinDropDown(findFrame)
+    if isPfUI and pfUI and pfUI.api then
+        if pfUI.api.SkinDropDown then
+            pfUI.api.SkinDropDown(filterFrame)
+            pfUI.api.SkinDropDown(findFrame)
         end
-        if _G.pfUI.api.SkinButton then
-            _G.pfUI.api.SkinButton(btnKalimdor)
-            _G.pfUI.api.SkinButton(btnEK)
-            _G.pfUI.api.SkinButton(btnDungeon)
-            _G.pfUI.api.SkinButton(btnRaid)
-            _G.pfUI.api.SkinButton(btnWorldBoss)
+        if pfUI.api.SkinButton then
+            pfUI.api.SkinButton(btnKalimdor)
+            pfUI.api.SkinButton(btnEK)
+            pfUI.api.SkinButton(btnDungeon)
+            pfUI.api.SkinButton(btnRaid)
+            pfUI.api.SkinButton(btnWorldBoss)
         end
     end
     
@@ -544,4 +544,4 @@ initFrame:SetScript("OnEvent", function()
     this:UnregisterEvent("VARIABLES_LOADED")
 end)
 
-_G.ModernMapMarkers_GUI = MMM_GUI
+ModernMapMarkers_GUI = MMM_GUI
