@@ -361,23 +361,43 @@ function MMM:GetIJInstance(nameEN)
     return dbTable[mapping.key]
 end
 
--- Atlas-TW Integration
+-- Atlas Integration (supports Atlas-CFM and Atlas-TW)
 function MMM:OnMarkerClick(marker, button)
-    -- Dungeons, raids, world bosses: open Atlas-TW
+    -- Dungeons, raids, world bosses: open Atlas
     local atlasKey = marker.atlasID
     if atlasKey then
-        if not AtlasTW or not AtlasTWOptions or not AtlasTW.DropDowns then return end
-        for typeIdx, zoneList in pairs(AtlasTW.DropDowns) do
-            for zoneIdx, key in pairs(zoneList) do
-                if key == atlasKey then
-                    AtlasTWOptions.AtlasType = typeIdx
-                    AtlasTWOptions.AtlasZone = zoneIdx
-                    AtlasTW.FrameDropDownTypeOnShow()
-                    AtlasTW.FrameDropDownOnShow()
-                    AtlasTW.Refresh()
-                    AtlasFrame:SetFrameStrata("FULLSCREEN")
-                    AtlasFrame:Show()
-                    return
+        if AtlasCFM and AtlasCFMOptions and AtlasCFM.DropDowns then
+            -- Atlas-CFM
+            for typeIdx, zoneList in pairs(AtlasCFM.DropDowns) do
+                for zoneIdx, key in pairs(zoneList) do
+                    if key == atlasKey then
+                        AtlasCFMOptions.AtlasType = typeIdx
+                        AtlasCFMOptions.AtlasZone = zoneIdx
+                        AtlasCFM.SkipRestore = true
+                        AtlasCFMFrame:Show()
+                        AtlasCFM.UpdateDropdownLabels()
+                        AtlasCFM.Refresh()
+                        if WorldMapFrame:IsShown() then
+                            HideUIPanel(WorldMapFrame)
+                        end
+                        return
+                    end
+                end
+            end
+        elseif AtlasTW and AtlasTWOptions and AtlasTW.DropDowns then
+            -- Atlas-TW (legacy)
+            for typeIdx, zoneList in pairs(AtlasTW.DropDowns) do
+                for zoneIdx, key in pairs(zoneList) do
+                    if key == atlasKey then
+                        AtlasTWOptions.AtlasType = typeIdx
+                        AtlasTWOptions.AtlasZone = zoneIdx
+                        AtlasTW.FrameDropDownTypeOnShow()
+                        AtlasTW.FrameDropDownOnShow()
+                        AtlasTW.Refresh()
+                        AtlasFrame:SetFrameStrata("FULLSCREEN")
+                        AtlasFrame:Show()
+                        return
+                    end
                 end
             end
         end
@@ -431,7 +451,7 @@ function MMM:GetOrCreateMarker(index)
             end
 
             -- Click hints
-            if this.atlasID and AtlasTW then
+            if this.atlasID and (AtlasCFM or AtlasTW) then
                 WorldMapTooltip:AddLine("Click: Atlas", 0.5, 0.5, 0.5)
             elseif this.dest then
                 if this.dest2 then
