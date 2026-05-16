@@ -3,17 +3,18 @@
 -- info: level range string for instances, faction string for transports
 -- atlasID: Atlas-TW string map key, nil for transport or unmapped entries
 -- dest: {continent, zoneName} destination for transport markers, nil otherwise
--- Marker data ported from TWoW DB 1.17.2 (1172 build)
+-- Marker data ported from TWoW DB 1.17.2 (1172 build), updated for 1.18.1
 ModernMapMarkers_Points = {
     [1] = { -- Kalimdor
         ["Ashenvale"] = {
             { x=0.123, y=0.128, name="Blackfathom Deeps",                   type="dungeon",   info="24-32", atlasID="BlackfathomDeeps",          dest=nil },
             { x=0.51,  y=0.78,  name="Crescent Grove",                      type="dungeon",   info="32-38", atlasID="TheCrescentGrove",           dest=nil },
-            { x=0.937, y=0.355, name="Emerald Dragon - Spawn Point 1 of 4", type="worldboss", info="60",    atlasID="FourDragons",                dest=nil },
+            { x=0.937, y=0.355, name="Ysondre",                               type="worldboss", info="60",    atlasID="FourDragons",                dest=nil },
         },
         ["Azshara"] = {
-            { x=0.535, y=0.816, name="Azuregos",  type="worldboss", info="60", atlasID="Azuregos", dest=nil },
-            { x=0.69,  y=0.094, name="Cla'ckora", type="worldboss", info="60", atlasID="Clackora",  dest=nil },
+            { x=0.535, y=0.816, name="Azuregos",      type="worldboss", info="60", atlasID="Azuregos",     dest=nil },
+            { x=0.69,  y=0.094, name="Cla'ckora",    type="worldboss", info="60", atlasID="Clackora",     dest=nil },
+            { x=0.385, y=0.34,  name="Timbermaw Hold", type="raid",    info="60", atlasID="TimbermawHold", dest=nil },
         },
         ["Darkshore"] = {
             { x=0.324, y=0.44,  name="Boat to Stormwind",         type="boat", info="Alliance", atlasID=nil, dest={2, "Stormwind City"} },
@@ -21,8 +22,9 @@ ModernMapMarkers_Points = {
             { x=0.333, y=0.399, name="Boat to Rut'Theran Village", type="boat", info="Alliance", atlasID=nil, dest={1, "Teldrassil"}    },
         },
         ["Desolace"] = {
-            { x=0.29, y=0.629, name="Maraudon",  type="dungeon",   info="46-55", atlasID="Maraudon",  dest=nil },
-            { x=0.82, y=0.80,  name="Concavius", type="worldboss", info="60",    atlasID="Concavius", dest=nil },
+            { x=0.29,  y=0.629, name="Maraudon",              type="dungeon",   info="46-55", atlasID="Maraudon",  dest=nil },
+            { x=0.82,  y=0.80,  name="Concavius",             type="worldboss", info="60",    atlasID="Concavius", dest=nil },
+            { x=0.205, y=0.75,  name="Boat to Moonhoof Village", type="boat",   info="Horde", atlasID=nil,         dest=nil },
         },
         ["Durotar"] = {
             { x=0.512, y=0.135, name="Zeppelins to UC & Grom'Gol", type="zepp", info="Horde", atlasID=nil, dest={2, "Tirisfal Glades"}, dest2={2, "Stranglethorn Vale"} },
@@ -37,13 +39,17 @@ ModernMapMarkers_Points = {
             { x=0.648, y=0.303, name="Dire Maul - East",                    type="dungeon",   info="55-58",    atlasID="DireMaulEast",  dest=nil },
             { x=0.624, y=0.249, name="Dire Maul - North",                   type="dungeon",   info="57-60",    atlasID="DireMaulNorth", dest=nil },
             { x=0.604, y=0.311, name="Dire Maul - West",                    type="dungeon",   info="57-60",    atlasID="DireMaulWest",  dest=nil },
-            { x=0.512, y=0.108, name="Emerald Dragon - Spawn Point 2 of 4", type="worldboss", info="60",       atlasID="FourDragons",   dest=nil },
+            { x=0.512, y=0.108, name="Taerar",                               type="worldboss", info="60",       atlasID="FourDragons",   dest=nil },
             { x=0.311, y=0.395, name="Boat to Forgotten Coast",             type="boat",      info="Alliance", atlasID=nil,             dest=nil },
             { x=0.431, y=0.428, name="Boat to Sardor Isle",                 type="boat",      info="Alliance", atlasID=nil,             dest=nil },
         },
         ["Hyjal"] = {
             { x=0.207, y=0.592, name="Emerald Sanctum", type="raid",      info="60", atlasID="EmeraldSanctum", dest=nil },
             { x=0.336, y=0.398, name="Father Lycan",    type="worldboss", info="60", atlasID=nil,               dest=nil },
+        },
+        ["Moonwhisper Coast"] = {
+            { x=0.506, y=0.959, name="Timbermaw Hold",          type="raid", info="60",    atlasID="TimbermawHold", dest=nil },
+            { x=0.71,  y=0.38,  name="Boat to Shadowprey Village", type="boat", info="Horde", atlasID=nil,          dest=nil },
         },
         ["Orgrimmar"] = {
             { x=0.53, y=0.486, name="Ragefire Chasm", type="dungeon", info="13-18", atlasID="RagefireChasm", dest=nil },
@@ -61,10 +67,13 @@ ModernMapMarkers_Points = {
             { x=0.552, y=0.949, name="Boat to Auberdine", type="boat", info="Alliance", atlasID=nil, dest={1, "Darkshore"} },
         },
         ["The Barrens"] = {
-            { x=0.491, y=0.896, name="Razorfen Downs",    type="dungeon", info="37-46",  atlasID="RazorfenDowns",  dest=nil                          },
-            { x=0.431, y=0.863, name="Razorfen Kraul",    type="dungeon", info="29-38",  atlasID="RazorfenKraul",  dest=nil                          },
-            { x=0.472, y=0.327, name="Wailing Caverns",   type="dungeon", info="17-24",  atlasID="WailingCaverns", dest=nil                          },
+            { x=0.488, y=0.919, name="Razorfen Downs",    type="dungeon", info="37-46",  atlasID="RazorfenDowns",  dest=nil                          },
+            { x=0.407, y=0.873, name="Razorfen Kraul",    type="dungeon", info="29-38",  atlasID="RazorfenKraul",  dest=nil                          },
+            { x=0.462, y=0.357, name="Wailing Caverns",   type="dungeon", info="17-24",  atlasID="WailingCaverns", dest=nil                          },
             { x=0.636, y=0.389, name="Boat to Booty Bay", type="boat",    info="Neutral", atlasID=nil,             dest={2, "Stranglethorn Vale"}    },
+        },
+        ["Thousand Needles"] = {
+            { x=0.648, y=0.460, name="Windhorn Canyon", type="dungeon", info="26-30", atlasID="WindhornCanyon", dest=nil },
         },
         ["Thunder Bluff"] = {
             { x=0.165, y=0.230, name="Zeppelin to Orgrimmar", type="zepp", info="Horde", atlasID=nil, dest={1, "Durotar"} },
@@ -78,6 +87,10 @@ ModernMapMarkers_Points = {
             { x=0.429, y=0.130, name="Uldaman - Main Entrance", type="dungeon", info="41-51", atlasID="Uldaman", dest=nil          },
             { x=0.657, y=0.438, name="Uldaman - Back Entrance", type="dungeon", info="41-51", atlasID="Uldaman", dest=nil          },
             { x=0.075, y=0.480, name="Zeppelin to Orgrimmar",   type="zepp",    info="Horde", atlasID=nil,       dest={1, "Durotar"} },
+        },
+        ["Balor"] = {
+            { x=0.57,  y=0.598, name="Stormwrought Ruins",                type="dungeon", info="35-41", atlasID="StormwroughtRuins", dest=nil },
+            { x=0.561, y=0.846, name="Stormwrought Ruins - Back Entrance", type="dungeon", info="35-41", atlasID="StormwroughtRuins", dest=nil },
         },
         ["Blasted Lands"] = {
             { x=0.36, y=0.753, name="Lord Kazzak", type="worldboss", info="60", atlasID="LordKazzak", dest=nil },
@@ -93,14 +106,15 @@ ModernMapMarkers_Points = {
         ["Deadwind Pass"] = {
             { x=0.45,  y=0.75,  name="Karazhan Crypt",          type="dungeon",   info="58-60", atlasID="KarazhanCrypt",   dest=nil },
             { x=0.46,  y=0.70,  name="Lower Karazhan Halls",    type="raid",      info="58-60", atlasID="LowerKarazhan",   dest=nil },
-            { x=0.442, y=0.719, name="Upper Karazhan Halls",    type="raid",      info="60",    atlasID="TowerofKarazhan", dest=nil },
+            { x=0.442, y=0.719, name="Tower of Karazhan",        type="raid",      info="60",    atlasID="TowerofKarazhan", dest=nil },
             { x=0.471, y=0.751, name="Dark Reaver of Karazhan", type="worldboss", info="60",    atlasID="Reaver",          dest=nil },
         },
         ["Dun Morogh"] = {
-            { x=0.248, y=0.337, name="Gnomeregan", type="dungeon", info="29-38", atlasID="Gnomeregan", dest=nil },
+            { x=0.248, y=0.337, name="Gnomeregan",      type="dungeon", info="29-38", atlasID="Gnomeregan",    dest=nil },
+            { x=0.669, y=0.402, name="Frostmane Hollow", type="dungeon", info="13-20", atlasID="FrostmaneHollow", dest=nil },
         },
         ["Duskwood"] = {
-            { x=0.465, y=0.357, name="Emerald Dragon - Spawn Point 3 of 4", type="worldboss", info="60", atlasID="FourDragons", dest=nil },
+            { x=0.465, y=0.357, name="Lethon",                               type="worldboss", info="60", atlasID="FourDragons", dest=nil },
         },
         ["Eastern Plaguelands"] = {
             { x=0.31,  y=0.14,  name="Stratholme",             type="dungeon",   info="58-60", atlasID="Stratholme", dest=nil },
@@ -134,15 +148,15 @@ ModernMapMarkers_Points = {
             { x=0.218, y=0.563, name="Boat to Auberdine", type="boat",   info="Alliance", atlasID=nil,           dest={1, "Darkshore"} },
         },
         ["Stranglethorn Vale"] = {
-            { x=0.53,  y=0.18,  name="Zul'Gurub",                   type="raid", info="60",      atlasID="ZulGurub",         dest=nil                    },
+            { x=0.53,  y=0.172, name="Zul'Gurub",                   type="raid", info="60",      atlasID="ZulGurub",         dest=nil                    },
             { x=0.257, y=0.73,  name="Boat to Ratchet",             type="boat", info="Neutral", atlasID=nil,                dest={1, "The Barrens"}      },
             { x=0.312, y=0.298, name="Zeppelins to UC & Orgrimmar", type="zepp", info="Horde",   atlasID=nil, dest={2, "Tirisfal Glades"}, dest2={1, "Durotar"}        },
         },
         ["Swamp of Sorrows"] = {
-            { x=0.69, y=0.55, name="The Sunken Temple", type="dungeon", info="50-60", atlasID="TheSunkenTemple", dest=nil },
+            { x=0.701, y=0.55, name="The Sunken Temple", type="dungeon", info="50-60", atlasID="TheSunkenTemple", dest=nil },
         },
         ["The Hinterlands"] = {
-            { x=0.632, y=0.217, name="Emerald Dragon - Spawn Point 4 of 4", type="worldboss", info="60",    atlasID="FourDragons", dest=nil },
+            { x=0.632, y=0.217, name="Emeriss",                               type="worldboss", info="60",    atlasID="FourDragons", dest=nil },
             { x=0.812, y=0.794, name="Boat to Sparkwater Port",             type="boat",      info="Horde", atlasID=nil,           dest=nil },
         },
         ["Tirisfal Glades"] = {
@@ -159,7 +173,8 @@ ModernMapMarkers_Points = {
             { x=0.423, y=0.726, name="The Deadmines", type="dungeon", info="17-24", atlasID="TheDeadmines", dest=nil },
         },
         ["Wetlands"] = {
-            { x=0.068, y=0.613, name="Boat to Theramore Isle", type="boat", info="Alliance", atlasID=nil, dest={1, "Dustwallow Marsh"} },
+            { x=0.67,  y=0.634, name="Dragonmaw Retreat",     type="dungeon", info="27-33",  atlasID="DragonmawRetreat", dest=nil                       },
+            { x=0.068, y=0.613, name="Boat to Theramore Isle", type="boat",    info="Alliance", atlasID=nil,               dest={1, "Dustwallow Marsh"} },
         },
     }
 }
