@@ -1,6 +1,77 @@
 local MMM_GUI = {}
-local isPfUI = IsAddOnLoaded("pfUI")
+local isPfUI = IsAddOnLoaded and IsAddOnLoaded("pfUI")
 local L = ModernMapMarkers_Locale
+
+local pfDrop
+local pfLevelDrop
+local isShaguMap
+local isPfUIMapOn
+local isCartographer
+
+local CART_OFFSET_X = 0
+local CART_OFFSET_Y = -10
+
+local cartAlphaHooked = false
+local function RestoreMMMAlpha()
+    local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
+    local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
+    local panel       = getglobal("ModernMapMarkersFind_Panel")
+    if filterFrame then filterFrame:SetAlpha(1) end
+    if findFrame   then findFrame:SetAlpha(1)   end
+    if panel       then panel:SetAlpha(1)       end
+end
+
+local function HookCartographerAlpha()
+    if cartAlphaHooked then return end
+    if not Cartographer_LookNFeel then return end
+    cartAlphaHooked = true
+    if Cartographer_LookNFeel.SetAlpha then
+        local origSetAlpha = Cartographer_LookNFeel.SetAlpha
+        Cartographer_LookNFeel.SetAlpha = function(self, value)
+            origSetAlpha(self, value)
+            RestoreMMMAlpha()
+        end
+    end
+    if Cartographer_LookNFeel.SetOverlayAlpha then
+        local origSetOverlayAlpha = Cartographer_LookNFeel.SetOverlayAlpha
+        Cartographer_LookNFeel.SetOverlayAlpha = function(self, value)
+            origSetOverlayAlpha(self, value)
+            RestoreMMMAlpha()
+        end
+    end
+end
+
+local function ResolveCompatState()
+    pfDrop         = getglobal("pfQuestMapDropdown")
+    pfLevelDrop    = pfDrop and getglobal("pfQuestMapLevelDropdown")
+    local stKey    = ShaguTweaks and ShaguTweaks.T and ShaguTweaks.T["WorldMap Window"]
+    isShaguMap     = stKey and ShaguTweaks_config and ShaguTweaks_config[stKey] == 1
+    isPfUIMapOn    = isPfUI and not (pfUI_config and pfUI_config["disabled"] and pfUI_config["disabled"]["map"] == "1")
+    isCartographer = (not pfDrop) and (Cartographer ~= nil)
+    if isCartographer then HookCartographerAlpha() end
+end
+
+local function PositionDropdowns()
+    local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
+    local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
+    if not filterFrame then return end
+    filterFrame:ClearAllPoints()
+    if pfLevelDrop then
+        filterFrame:SetPoint("TOPRIGHT", pfLevelDrop, "BOTTOMRIGHT", 0, 0)
+    elseif pfDrop then
+        filterFrame:SetPoint("TOPRIGHT", pfDrop, "BOTTOMRIGHT", 0, 0)
+    elseif isCartographer and WorldMapDetailFrame then
+        filterFrame:SetPoint("TOPRIGHT", WorldMapDetailFrame, "TOPRIGHT", CART_OFFSET_X, CART_OFFSET_Y)
+    elseif isPfUIMapOn or isShaguMap then
+        filterFrame:SetPoint("TOPRIGHT", WorldMapFrame, "TOPRIGHT", -8, -56)
+    else
+        filterFrame:SetPoint("TOPRIGHT", WorldMapFrame, "TOPRIGHT", -183, -79)
+    end
+    if findFrame then
+        findFrame:ClearAllPoints()
+        findFrame:SetPoint("TOPRIGHT", filterFrame, "BOTTOMRIGHT", 0, 0)
+    end
+end
 
 function MMM_GUI.InitializeWorldMapControls()
 
@@ -57,7 +128,7 @@ function MMM_GUI.InitializeWorldMapControls()
         end
         filterOptions[1].checked = allOn
     end
-    
+
     -- Determine Parent Frame (Standard or pfQuest)
     local dropdownParent = WorldMapFrame
 
@@ -90,30 +161,30 @@ function MMM_GUI.InitializeWorldMapControls()
     -- Approximate width: ~7px per character + padding, with minimum
     local dropdownWidth = math.max(MIN_DROPDOWN_WIDTH, longestLabel * 7 + PADDING)
     local dropdownButtonWidth = dropdownWidth + 5
-    
-    if pfQuestMapDropdown then
-        dropdownParent = pfQuestMapDropdown:GetParent() or dropdownParent
-    end
 
     -- Filter Dropdown
     local filterFrame = CreateFrame("Frame", "ModernMapMarkersFilter_Blizz", dropdownParent, "UIDropDownMenuTemplate")
 
     filterFrame:SetFrameStrata(dropdownParent:GetFrameStrata())
     filterFrame:SetFrameLevel(dropdownParent:GetFrameLevel() + 10)
-    
+
     local filterBtn = getglobal(filterFrame:GetName().."Button")
-    if filterBtn then filterBtn:SetFrameLevel(filterFrame:GetFrameLevel() + 2) end
+    if filterBtn then
+        filterBtn:SetFrameLevel(filterFrame:GetFrameLevel() + 2)
+        filterBtn:SetScript("OnMouseDown", function()
+            local panel = getglobal("ModernMapMarkersFind_Panel")
+            if panel and panel:IsVisible() then
+                panel:Hide()
+            end
+        end)
+    end
 
     -- Positioning
-    if pfQuestMapDropdown then
-        filterFrame:SetPoint("TOPRIGHT", pfQuestMapDropdown, "BOTTOMRIGHT", 0, 0)
-    else
-        filterFrame:SetPoint("TOPRIGHT", WorldMapFrame, "TOPRIGHT", -10, -40)
-    end
-    
-    UIDropDownMenu_Initialize(filterFrame, function(level)
+    PositionDropdowns()
+
+    local function InitFilterMenu(level)
         for _, itemRaw in ipairs(filterOptions) do
-            local item = itemRaw 
+            local item = itemRaw
 
             if item.isHeader then
                 local info = {}
@@ -155,12 +226,19 @@ function MMM_GUI.InitializeWorldMapControls()
                             filterOptions[1].checked = allOn
                         end
                     end
-                    ToggleDropDownMenu(1, nil, filterFrame) 
+                    if item.isRadio or item.value == "ALL" then
+                        local ticker = CreateFrame("Frame")
+                        ticker:SetScript("OnUpdate", function()
+                            this:SetScript("OnUpdate", nil)
+                            UIDropDownMenu_Initialize(filterFrame, InitFilterMenu)
+                        end)
+                    end
                 end
                 UIDropDownMenu_AddButton(info, level)
             end
         end
-    end)
+    end
+    UIDropDownMenu_Initialize(filterFrame, InitFilterMenu)
 
     UIDropDownMenu_SetWidth(dropdownWidth, filterFrame)
     UIDropDownMenu_SetButtonWidth(dropdownButtonWidth, filterFrame)
@@ -185,6 +263,8 @@ function MMM_GUI.InitializeWorldMapControls()
 
     if findBtn then
         findBtn:SetScript("OnClick", function()
+            PlaySound("igMainMenuOptionCheckBoxOn")
+            if CloseDropDownMenus then CloseDropDownMenus() end
             local panel = getglobal("ModernMapMarkersFind_Panel")
             if panel then
                 if panel:IsVisible() then
@@ -196,8 +276,6 @@ function MMM_GUI.InitializeWorldMapControls()
             end
         end)
     end
-
-    UIDropDownMenu_Initialize(findFrame, function() end)
 
     -- Find Marker Panel
     local PANEL_WIDTH = 220
@@ -475,6 +553,10 @@ function MMM_GUI.InitializeWorldMapControls()
             pfUI.api.SkinDropDown(filterFrame)
             pfUI.api.SkinDropDown(findFrame)
         end
+        if pfUI.api.CreateBackdrop then
+            pfUI.api.CreateBackdrop(findPanel)
+            findPanel:Hide()
+        end
         if pfUI.api.SkinButton then
             pfUI.api.SkinButton(btnKalimdor)
             pfUI.api.SkinButton(btnEK)
@@ -483,7 +565,7 @@ function MMM_GUI.InitializeWorldMapControls()
             pfUI.api.SkinButton(btnWorldBoss)
         end
     end
-    
+
     -- Apply saved visibility state
     if ModernMapMarkersDB and ModernMapMarkersDB.hideDropdowns then
         filterFrame:Hide()
@@ -513,11 +595,11 @@ SlashCmdList["MMM"] = function()
         ModernMapMarkersDB = { filters = {} }
     end
     ModernMapMarkersDB.hideDropdowns = not ModernMapMarkersDB.hideDropdowns
-    
+
     local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
     local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
     local findPanel   = getglobal("ModernMapMarkersFind_Panel")
-    
+
     if filterFrame and findFrame then
         if ModernMapMarkersDB.hideDropdowns then
             filterFrame:Hide()
@@ -538,10 +620,25 @@ end
 
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("VARIABLES_LOADED")
+initFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 initFrame:SetScript("OnEvent", function()
-    L:Initialize()
-    MMM_GUI.InitializeWorldMapControls()
-    this:UnregisterEvent("VARIABLES_LOADED")
+    if event == "VARIABLES_LOADED" then
+        L:Initialize()
+        ResolveCompatState()
+        MMM_GUI.InitializeWorldMapControls()
+        this:UnregisterEvent("VARIABLES_LOADED")
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        ResolveCompatState()
+        PositionDropdowns()
+        if (isShaguMap or isPfUIMapOn) and not pfDrop then
+            local deferFrame = CreateFrame("Frame")
+            deferFrame:SetScript("OnUpdate", function()
+                this:SetScript("OnUpdate", nil)
+                PositionDropdowns()
+            end)
+        end
+        this:UnregisterEvent("PLAYER_ENTERING_WORLD")
+    end
 end)
 
 ModernMapMarkers_GUI = MMM_GUI
