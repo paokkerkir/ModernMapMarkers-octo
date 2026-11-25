@@ -94,10 +94,19 @@ MMM.filters = {
     FACTION   = "ALL"
 }
 
+local HOVER_SIZE_MULTIPLIER   = 1.15
+local HOVER_ALPHA             = 0.5
+local FIND_SIZE_MULTIPLIER    = 1.4
+local FIND_HIGHLIGHT_ALPHA    = 0.9
+local FIND_HIGHLIGHT_DURATION = 1.75
+local SOUND_PING              = "Sound\\Interface\\MapPing.wav"
+
 -- Dirty-check state for RefreshMarkers
-local lastContinent = nil
-local lastZone      = nil
-local forceRefresh  = false
+local lastContinent  = nil
+local lastZone       = nil
+local forceRefresh   = false
+local pendingOriginC = nil
+local pendingOriginZ = nil
 
 -- Textures
 local TEX_BASE = "Interface\\AddOns\\ModernMapMarkers-octo\\Textures\\"
@@ -217,6 +226,55 @@ function ModernMapMarkers_GetFlatData()
     return filteredData
 end
 
+local function StopPinHighlight(pin)
+    pin:SetScript("OnUpdate", nil)
+    pin.findTimer = nil
+    if pin.originalSize then
+        pin:SetWidth(pin.originalSize)
+        pin:SetHeight(pin.originalSize)
+    end
+    if pin.highlight then
+        pin.highlight:SetAlpha(0)
+    end
+end
+
+local function StartPinHighlight(pin)
+    if not pin or not pin.originalSize then return end
+    pin.highlight:SetAlpha(0)
+    pin.findTimer = 0
+    pin:SetScript("OnUpdate", function()
+        this.findTimer = this.findTimer + arg1
+        local progress = this.findTimer / FIND_HIGHLIGHT_DURATION
+        if progress >= 1 then
+            StopPinHighlight(this)
+        else
+            local envelope = 1 - progress
+            local pulse    = (math.sin(progress * 3.14159 * 8) + 1) * 0.5
+            local sz = this.originalSize
+                + (this.originalSize * (FIND_SIZE_MULTIPLIER - 1)) * pulse * envelope
+            this:SetWidth(sz)
+            this:SetHeight(sz)
+            this.highlight:SetAlpha(FIND_HIGHLIGHT_ALPHA * pulse * envelope)
+        end
+    end)
+end
+
+local function MatchesPendingHighlight(pinNameEN, target)
+    if not pinNameEN or not target then return false end
+    if pinNameEN == target then return true end
+    local tLen = string.len(target)
+    if string.len(pinNameEN) > tLen and string.sub(pinNameEN, 1, tLen) == target then
+        if string.sub(pinNameEN, tLen + 1, tLen + 3) == " - " then
+            return true
+        end
+    end
+    return false
+end
+
+local function DestMatchesZone(dest, continent, zoneEN)
+    return dest and dest[1] == continent and dest[2] == zoneEN
+end
+
 -- Drawing Logic
 function MMM:RefreshMarkers()
     if not WorldMapFrame:IsVisible() then return end
@@ -282,19 +340,23 @@ function MMM:RefreshMarkers()
             if showMarker then
                 markerIndex = markerIndex + 1
                 local marker = self:GetOrCreateMarker(markerIndex)
+                StopPinHighlight(marker)
 
                 -- Sizing
-                if data.type == "DUNGEON" or data.type == "RAID" or data.type == "WORLDBOSS" then
-                    marker:SetWidth(32)
-                    marker:SetHeight(32)
-                else
-                    marker:SetWidth(24)
-                    marker:SetHeight(24)
-                end
+                local size = (data.type == "DUNGEON" or data.type == "RAID" or data.type == "WORLDBOSS") and 32 or 24
+                marker.originalSize = size
+                marker:SetWidth(size)
+                marker:SetHeight(size)
 
                 -- Position
                 local width  = WorldMapDetailFrame:GetWidth()
                 local height = WorldMapDetailFrame:GetHeight()
+                if width == 0 or height == 0 then
+                    lastContinent = nil
+                    lastZone      = nil
+                    return
+                end
+                marker:ClearAllPoints()
                 marker:SetPoint("CENTER", WorldMapDetailFrame, "TOPLEFT", data.x * width, -data.y * height)
 
                 -- Texture
@@ -304,15 +366,12 @@ function MMM:RefreshMarkers()
                     marker.lastTexture = tex
                 end
 
-                local hlTex = HIGHLIGHT_MAP[data.type]
+                local hlTex = HIGHLIGHT_MAP[data.type] or tex
                 if marker.lastHighlight ~= hlTex then
-                    if hlTex then
-                        marker:SetHighlightTexture(hlTex)
-                    elseif marker.lastHighlight then
-                        marker:SetHighlightTexture("")
-                    end
+                    marker.highlight:SetTexture(hlTex)
                     marker.lastHighlight = hlTex
                 end
+                marker.highlight:SetAlpha(0)
 
                 -- Metadata
                 marker.name        = L:GetLocalizedMarkerName(data.name)
@@ -325,6 +384,7 @@ function MMM:RefreshMarkers()
                 marker.dest        = data.dest
                 marker.dest2       = data.dest2
 
+                marker:SetAlpha(1)
                 marker:Show()
             end
         end
@@ -332,6 +392,31 @@ function MMM:RefreshMarkers()
 
     -- Hide any excess markers from the previous zone
     self:HideMarkersFrom(markerIndex + 1)
+
+    if MMM.pendingHighlight then
+        local target = MMM.pendingHighlight
+        MMM.pendingHighlight = nil
+        for i = 1, markerIndex do
+            local pin = self.markers[i]
+            if pin and MatchesPendingHighlight(pin.nameEN, target) then
+                StartPinHighlight(pin)
+            end
+        end
+    end
+
+    if pendingOriginC and pendingOriginZ then
+        local oc = pendingOriginC
+        local oz = pendingOriginZ
+        pendingOriginC = nil
+        pendingOriginZ = nil
+        for i = 1, markerIndex do
+            local pin = self.markers[i]
+            if pin and (DestMatchesZone(pin.dest, oc, oz) or DestMatchesZone(pin.dest2, oc, oz)) then
+                StartPinHighlight(pin)
+                break
+            end
+        end
+    end
 end
 
 -- Hide all markers in the pool
@@ -389,6 +474,7 @@ end
 function MMM:HideMarkersFrom(startIndex)
     for i = startIndex, table.getn(self.markers) do
         if self.markers[i] then
+            StopPinHighlight(self.markers[i])
             self.markers[i]:Hide()
         end
     end
@@ -459,8 +545,30 @@ function MMM:OnMarkerClick(marker, button)
         if button == "RightButton" and marker.dest2 then
             target = marker.dest2
         end
+        local origC = GetCurrentMapContinent()
+        local origZ = GetCurrentMapZone()
+        local origZoneNames = ZONE_CACHE[origC]
+        local origZoneEN = origZoneNames and origZoneNames[origZ] and L:GetEnglishZoneName(origZoneNames[origZ]) or marker.zoneName
+
+        PlaySoundFile(SOUND_PING)
+
+        if target[1] == origC and target[2] == origZoneEN then
+            for i = 1, table.getn(self.markers) do
+                local pin = self.markers[i]
+                if pin and pin:IsVisible() and pin ~= marker
+                   and (DestMatchesZone(pin.dest, origC, origZoneEN) or DestMatchesZone(pin.dest2, origC, origZoneEN)) then
+                    StartPinHighlight(pin)
+                    break
+                end
+            end
+            return
+        end
+
         local zoneIndex = MMM:GetZoneIndex(target[1], target[2])
         if zoneIndex > 0 then
+            pendingOriginC = origC
+            pendingOriginZ = origZoneEN
+            MMM:InvalidateCache()
             SetMapZoom(target[1], zoneIndex)
         end
     end
@@ -478,14 +586,33 @@ function MMM:GetOrCreateMarker(index)
         tex:SetAllPoints(marker)
         marker.texture = tex
 
+        local hl = marker:CreateTexture(nil, "OVERLAY")
+        hl:SetAllPoints(marker)
+        hl:SetBlendMode("ADD")
+        hl:SetAlpha(0)
+        marker.highlight = hl
+
         marker:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         marker:SetScript("OnClick", function() MMM:OnMarkerClick(this, arg1) end)
 
         marker:SetScript("OnEnter", function()
             ShowPinTooltip(this)
+            if not this.findTimer and this.originalSize then
+                local newSize = this.originalSize * HOVER_SIZE_MULTIPLIER
+                this:SetWidth(newSize)
+                this:SetHeight(newSize)
+                this.highlight:SetAlpha(HOVER_ALPHA)
+            end
         end)
 
-        marker:SetScript("OnLeave", function() WorldMapTooltip:Hide() end)
+        marker:SetScript("OnLeave", function()
+            WorldMapTooltip:Hide()
+            if not this.findTimer and this.originalSize then
+                this:SetWidth(this.originalSize)
+                this:SetHeight(this.originalSize)
+                this.highlight:SetAlpha(0)
+            end
+        end)
 
         self.markers[index] = marker
     end
@@ -525,14 +652,13 @@ function MMM:GetZoneIndex(continentID, zoneName)
     return 0
 end
 
-function ModernMapMarkers_FindMarker(dataIndex)
+function ModernMapMarkers_FindMarker(dataIndex, matchName)
     MMM:BuildData()
     local data = MMM.Data[dataIndex]
     if not data then return end
 
-    local zoneIndex = MMM:GetZoneIndex(data.continent, data.zoneName)
-    if zoneIndex > 0 then
-        SetMapZoom(data.continent, zoneIndex)
+    if not WorldMapFrame:IsVisible() then
+        ShowUIPanel(WorldMapFrame)
     end
 
     if not MMM.filters[data.type] then
@@ -542,8 +668,19 @@ function ModernMapMarkers_FindMarker(dataIndex)
         end
     end
 
-    MMM:InvalidateCache()
-    MMM:RefreshMarkers()
+    MMM.pendingHighlight = matchName or data.name
+    PlaySoundFile(SOUND_PING)
+
+    local zoneIndex = MMM:GetZoneIndex(data.continent, data.zoneName)
+    if zoneIndex > 0 then
+        if GetCurrentMapContinent() == data.continent and GetCurrentMapZone() == zoneIndex then
+            MMM:InvalidateCache()
+            MMM:RefreshMarkers()
+        else
+            MMM:InvalidateCache()
+            SetMapZoom(data.continent, zoneIndex)
+        end
+    end
 end
 
 local original_WorldMapFrame_Update = WorldMapFrame_Update
