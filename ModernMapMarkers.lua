@@ -99,7 +99,35 @@ local HOVER_ALPHA             = 0.5
 local FIND_SIZE_MULTIPLIER    = 1.4
 local FIND_HIGHLIGHT_ALPHA    = 0.9
 local FIND_HIGHLIGHT_DURATION = 1.75
+local SOUND_CLICK             = "Sound\\Interface\\uCharacterSheetOpen.wav"
 local SOUND_PING              = "Sound\\Interface\\MapPing.wav"
+
+local CFM_WORLD_BOSS_ID = {
+    ["Azuregos"]    = "WBAzuregos",
+    ["Lord Kazzak"] = "WBLordKazzak",
+    ["Lethon"]      = "WBLethon",
+    ["Emeriss"]     = "WBEmeriss",
+    ["Taerar"]      = "WBTaerar",
+    ["Ysondre"]     = "WBYsondre",
+}
+
+local NORMAL_ATLAS_ALIASES = {
+    ["ScarletMonasteryArmory"]    = "SMArmory",
+    ["ScarletMonasteryCathedral"] = "SMCathedral",
+    ["ScarletMonasteryGraveyard"] = "SMGraveyard",
+    ["ScarletMonasteryLibrary"]   = "SMLibrary",
+    ["TheRuinsofAhnQiraj"]        = "AhnQirajRuins",
+    ["TheTempleofAhnQiraj"]       = "AhnQirajTemple",
+}
+
+local ATLASLOOT_WORLD_BOSS = {
+    ["Azuregos"]    = "AAzuregos",
+    ["Lord Kazzak"] = "KKazzak",
+    ["Lethon"]      = "DLethon",
+    ["Emeriss"]     = "DEmeriss",
+    ["Taerar"]      = "DTaerar",
+    ["Ysondre"]     = "DYsondre",
+}
 
 -- Dirty-check state for RefreshMarkers
 local lastContinent  = nil
@@ -107,6 +135,9 @@ local lastZone       = nil
 local forceRefresh   = false
 local pendingOriginC = nil
 local pendingOriginZ = nil
+local mmmZoneID      = nil
+local mmmAtlasType   = nil
+local mmmAtlasZone   = nil
 
 -- Textures
 local TEX_BASE = "Interface\\AddOns\\ModernMapMarkers-octo\\Textures\\"
@@ -449,7 +480,7 @@ local function ShowPinTooltip(pin)
     end
 
     -- Click hints
-    if pin.atlasID and (AtlasCFM or AtlasTW) then
+    if pin.atlasID and (AtlasCFM or AtlasTW or (AtlasFrame and ATLAS_DROPDOWNS)) then
         WorldMapTooltip:AddLine("Click: Atlas", 0.5, 0.5, 0.5)
     elseif pin.dest and (not ModernMapMarkersDB or ModernMapMarkersDB.showTransportHints ~= false) then
         if pin.dest2 then
@@ -526,34 +557,260 @@ local function IsWorldMapFullscreen()
             WorldMapFrame:GetHeight() / GetScreenHeight() > 0.9)
 end
 
+local function IsCFMBackend()
+    return (AtlasCFM ~= nil) and (AtlasFrame == nil or AtlasFrame == AtlasCFMFrame)
+end
+
+local function CFM_FindDropDownIndices(zoneKey)
+    if not (AtlasCFM and AtlasCFM.DropDowns) then return nil, nil end
+    for t, zones in pairs(AtlasCFM.DropDowns) do
+        for z, id in pairs(zones) do
+            if id == zoneKey then
+                return t, z
+            end
+        end
+    end
+    return nil, nil
+end
+
+local function CFM_OpenMap(zoneKey)
+    if not (AtlasCFM and AtlasCFM.Refresh and AtlasCFMFrame and AtlasCFMOptions) then return false end
+    local t, z = CFM_FindDropDownIndices(zoneKey)
+    if not t then return false end
+
+    local opts = AtlasCFMOptions
+    local savedAutoSelect = opts.AtlasAutoSelect
+    opts.AtlasAutoSelect = false
+    AtlasCFM.SkipRestore = true
+    opts.AtlasType = t
+    opts.AtlasZone = z
+
+    if AtlasCFM.UpdateDropdownLabels then
+        AtlasCFM.UpdateDropdownLabels()
+    end
+    AtlasCFM.Refresh()
+    AtlasCFMFrame:SetFrameStrata("FULLSCREEN")
+    AtlasCFMFrame:Show()
+
+    if AtlasCFMLootItemsFrame then
+        AtlasCFMLootItemsFrame.StoredElement = nil
+        AtlasCFMLootItemsFrame.StoredMenu    = nil
+        AtlasCFMLootItemsFrame.activeElement = nil
+        AtlasCFMLootItemsFrame:Hide()
+        if AtlasCFM.LootBrowserUI and AtlasCFM.LootBrowserUI.ScrollBarUpdate then
+            AtlasCFM.LootBrowserUI.ScrollBarUpdate()
+        end
+    end
+
+    opts.AtlasAutoSelect = savedAutoSelect
+    mmmZoneID = zoneKey
+    return true
+end
+
+local function NormalAtlas_FindIndices(zoneKey)
+    if not ATLAS_DROPDOWNS then return nil, nil, nil end
+    local alias = NORMAL_ATLAS_ALIASES[zoneKey]
+    for t, zones in pairs(ATLAS_DROPDOWNS) do
+        for z, id in pairs(zones) do
+            if id == zoneKey or (alias and id == alias) then
+                return t, z, id
+            end
+        end
+    end
+    return nil, nil, nil
+end
+
+local function ParkAtlasOnZone(zoneID)
+    if not zoneID or not AtlasOptions or not ATLAS_DROPDOWNS then return false end
+    for t, zones in pairs(ATLAS_DROPDOWNS) do
+        for z, id in pairs(zones) do
+            if id == zoneID then
+                AtlasOptions.AtlasType = t
+                AtlasOptions.AtlasZone = z
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function WithContinentSort(callback)
+    if not AtlasOptions or not Atlas_PopulateDropdowns then
+        callback()
+        return
+    end
+    local savedSortBy = AtlasOptions.AtlasSortBy
+    if savedSortBy and savedSortBy ~= 1 then
+        local savedType = AtlasOptions.AtlasType
+        local savedZone = AtlasOptions.AtlasZone
+        AtlasOptions.AtlasSortBy = 1
+        Atlas_PopulateDropdowns()
+        callback()
+        local openedZoneID = ATLAS_DROPDOWNS and ATLAS_DROPDOWNS[AtlasOptions.AtlasType]
+                         and ATLAS_DROPDOWNS[AtlasOptions.AtlasType][AtlasOptions.AtlasZone]
+        AtlasOptions.AtlasSortBy = savedSortBy
+        Atlas_PopulateDropdowns()
+        if not ParkAtlasOnZone(openedZoneID) then
+            AtlasOptions.AtlasType = savedType
+            AtlasOptions.AtlasZone = savedZone
+        end
+    else
+        callback()
+    end
+end
+
+local atlasToggleHooked = false
+local function HookAtlasToggle()
+    if atlasToggleHooked then return end
+    atlasToggleHooked = true
+
+    if IsCFMBackend() then
+        if not (AtlasCFM and AtlasCFM.Refresh and AtlasCFM.ToggleAtlas) then return end
+
+        local original_Refresh = AtlasCFM.Refresh
+        AtlasCFM.Refresh = function()
+            original_Refresh()
+            if mmmZoneID and AtlasCFMOptions and AtlasCFM.DropDowns then
+                local currentKey = AtlasCFM.DropDowns[AtlasCFMOptions.AtlasType]
+                               and AtlasCFM.DropDowns[AtlasCFMOptions.AtlasType][AtlasCFMOptions.AtlasZone]
+                if currentKey ~= mmmZoneID then
+                    mmmZoneID = nil
+                end
+            end
+        end
+
+        local original_Toggle = AtlasCFM.ToggleAtlas
+        AtlasCFM.ToggleAtlas = function()
+            local frame = AtlasCFMFrame
+            local willShow = frame and not frame:IsVisible()
+            if willShow and mmmZoneID then
+                CFM_OpenMap(mmmZoneID)
+            else
+                original_Toggle()
+            end
+        end
+        if Atlas_Toggle == original_Toggle then
+            Atlas_Toggle = AtlasCFM.ToggleAtlas
+        end
+    elseif not AtlasTW and Atlas_Toggle and AtlasFrame then
+        local original_Atlas_Toggle = Atlas_Toggle
+        Atlas_Toggle = function()
+            local willShow = not AtlasFrame:IsVisible()
+            if willShow and mmmAtlasType and AtlasOptions and AtlasOptions.AtlasSortBy ~= 1 then
+                local savedType = mmmAtlasType
+                local savedZone = mmmAtlasZone
+                WithContinentSort(function()
+                    AtlasOptions.AtlasType = savedType
+                    AtlasOptions.AtlasZone = savedZone
+                    original_Atlas_Toggle()
+                end)
+            else
+                original_Atlas_Toggle()
+            end
+        end
+
+        if AtlasFrameDropDownType_OnClick then
+            local original_Type_OnClick = AtlasFrameDropDownType_OnClick
+            AtlasFrameDropDownType_OnClick = function()
+                mmmZoneID    = nil
+                mmmAtlasType = nil
+                mmmAtlasZone = nil
+                original_Type_OnClick()
+            end
+        end
+
+        if AtlasFrameDropDown_OnClick then
+            local original_Zone_OnClick = AtlasFrameDropDown_OnClick
+            AtlasFrameDropDown_OnClick = function()
+                mmmZoneID    = nil
+                mmmAtlasType = nil
+                mmmAtlasZone = nil
+                original_Zone_OnClick()
+            end
+        end
+    end
+end
+
+local function PrimeAtlasSilently()
+    if IsCFMBackend() or AtlasTW then return end
+    if not Atlas_Refresh or not AtlasOptions then return end
+    WithContinentSort(function()
+        AtlasOptions.AtlasType = 1
+        AtlasOptions.AtlasZone = 1
+        Atlas_Refresh()
+    end)
+end
+
+local primingScheduled = false
+local function ScheduleAtlasPriming()
+    if primingScheduled then return end
+    primingScheduled = true
+    local primerFrame = CreateFrame("Frame")
+    primerFrame.timer = 0
+    primerFrame:SetScript("OnUpdate", function()
+        this.timer = this.timer + arg1
+        if this.timer >= 0.5 then
+            this:SetScript("OnUpdate", nil)
+            PrimeAtlasSilently()
+            HookAtlasToggle()
+        end
+    end)
+end
+
 -- Atlas Integration (supports Atlas-CFM and Atlas-TW)
 function MMM:OnMarkerClick(marker, button)
     -- Dungeons, raids, world bosses: open Atlas
     local atlasKey = marker.atlasID
     if atlasKey then
-        if AtlasCFM and AtlasCFMOptions and AtlasCFM.DropDowns then
+        if IsCFMBackend() then
             -- Atlas-CFM
-            for typeIdx, zoneList in pairs(AtlasCFM.DropDowns) do
-                for zoneIdx, key in pairs(zoneList) do
-                    if key == atlasKey then
-                        AtlasCFMOptions.AtlasType = typeIdx
-                        AtlasCFMOptions.AtlasZone = zoneIdx
-                        AtlasCFM.SkipRestore = true
-                        AtlasCFMFrame:Show()
-                        AtlasCFM.UpdateDropdownLabels()
-                        AtlasCFM.Refresh()
-                        if WorldMapFrame:IsVisible() and IsWorldMapFullscreen() then
-                            HideUIPanel(WorldMapFrame)
+            if not (AtlasCFM and AtlasCFM.Refresh and AtlasCFMFrame and AtlasCFMOptions) then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000Atlas-CFM not loaded.|r")
+                return
+            end
+            PlaySoundFile(SOUND_CLICK)
+            if WorldMapFrame:IsVisible() and IsWorldMapFullscreen() then
+                HideUIPanel(WorldMapFrame)
+            end
+            if not CFM_OpenMap(atlasKey) then
+                DEFAULT_CHAT_FRAME:AddMessage("|cFFFF0000Atlas-CFM map not found for \"" .. (marker.name or atlasKey) .. "\".|r")
+                return
+            end
+            local cfmBossID = (marker.markerType == "WORLDBOSS") and CFM_WORLD_BOSS_ID[marker.nameEN] or nil
+            if cfmBossID and AtlasCFM.ScrollList and AtlasCFM.DataResolver and AtlasCFM.LootBrowserUI and AtlasCFM.LootCache then
+                local zoneID = AtlasCFM.DropDowns
+                           and AtlasCFM.DropDowns[AtlasCFMOptions.AtlasType]
+                           and AtlasCFM.DropDowns[AtlasCFMOptions.AtlasType][AtlasCFMOptions.AtlasZone]
+                for i = 1, table.getn(AtlasCFM.ScrollList) do
+                    local entry = AtlasCFM.ScrollList[i]
+                    if entry and entry.id == cfmBossID then
+                        local lootTable = AtlasCFM.DataResolver.GetLootByElemName(entry.name, zoneID)
+                        if lootTable then
+                            AtlasCFMLootItemsFrame.StoredElement = entry.name
+                            AtlasCFMLootItemsFrame.StoredMenu    = zoneID
+                            AtlasCFMLootItemsFrame.activeElement = i
+                            AtlasCFMLootItemsFrame:Show()
+                            AtlasCFM.LootBrowserUI.ShowScrollBarLoading()
+                            AtlasCFM.LootCache.CacheAllItems(lootTable, function()
+                                AtlasCFM.LootBrowserUI.HideScrollBarLoading()
+                                AtlasCFM.LootBrowserUI.ScrollBarLootUpdate()
+                            end)
+                            AtlasCFM.LootBrowserUI.ScrollBarUpdate()
                         end
-                        return
+                        break
                     end
                 end
             end
+            return
         elseif AtlasTW and AtlasTWOptions and AtlasTW.DropDowns then
             -- Atlas-TW (legacy)
             for typeIdx, zoneList in pairs(AtlasTW.DropDowns) do
                 for zoneIdx, key in pairs(zoneList) do
                     if key == atlasKey then
+                        PlaySoundFile(SOUND_CLICK)
+                        if WorldMapFrame:IsVisible() and IsWorldMapFullscreen() then
+                            HideUIPanel(WorldMapFrame)
+                        end
                         AtlasTWOptions.AtlasType = typeIdx
                         AtlasTWOptions.AtlasZone = zoneIdx
                         AtlasTW.FrameDropDownTypeOnShow()
@@ -565,8 +822,49 @@ function MMM:OnMarkerClick(marker, button)
                     end
                 end
             end
+        elseif AtlasFrame and AtlasOptions and ATLAS_DROPDOWNS and Atlas_Refresh then
+            local opened = false
+            WithContinentSort(function()
+                local atlasType, atlasZone, resolvedKey = NormalAtlas_FindIndices(atlasKey)
+                if atlasType and atlasZone then
+                    PlaySoundFile(SOUND_CLICK)
+                    if WorldMapFrame:IsVisible() and IsWorldMapFullscreen() then
+                        HideUIPanel(WorldMapFrame)
+                    end
+                    local savedAutoSelect = AtlasOptions.AtlasAutoSelect
+                    AtlasOptions.AtlasType = atlasType
+                    AtlasOptions.AtlasZone = atlasZone
+                    AtlasOptions.AtlasAutoSelect = false
+                    Atlas_Refresh()
+                    AtlasFrame:SetFrameStrata("FULLSCREEN")
+                    AtlasFrame:Show()
+                    AtlasOptions.AtlasAutoSelect = savedAutoSelect
+                    mmmAtlasType = atlasType
+                    mmmAtlasZone = atlasZone
+                    mmmZoneID    = resolvedKey
+                    opened = true
+                end
+            end)
+            if opened then
+                if AtlasQuestFrame then AtlasQuestFrame:Show() end
+                if marker.markerType == "WORLDBOSS" and AtlasLoot_ShowBossLoot then
+                    local lootID = ATLASLOOT_WORLD_BOSS[marker.nameEN]
+                    if lootID then
+                        local bossName = marker.nameEN
+                        local delayFrame = CreateFrame("Frame")
+                        delayFrame.timer = 0
+                        delayFrame:SetScript("OnUpdate", function()
+                            this.timer = this.timer + arg1
+                            if this.timer >= 0.1 then
+                                this:SetScript("OnUpdate", nil)
+                                pcall(AtlasLoot_ShowBossLoot, lootID, bossName, AtlasFrame)
+                            end
+                        end)
+                    end
+                end
+                return
+            end
         end
-        return
     end
 
     -- Transport: navigate world map to destination zone
@@ -603,6 +901,29 @@ function MMM:OnMarkerClick(marker, button)
             pendingOriginZ = origZoneEN
             MMM:InvalidateCache()
             SetMapZoom(target[1], zoneIndex)
+        end
+        return
+    end
+
+    if MMM.ijInstalled then
+        local instance = MMM:GetIJInstance(marker.nameEN)
+        if instance then
+            if button == "RightButton" then
+                if not IJ_InstanceJournalFrame:IsShown() then
+                    IJ_InstanceJournalFrame:Show()
+                end
+                if instance.Type == IJLib.InstanceType.Raid then
+                    IJ_ShowRaids = true
+                    PanelTemplates_SetTab(IJ_InstanceJournalFrame, 2)
+                else
+                    IJ_ShowRaids = false
+                    PanelTemplates_SetTab(IJ_InstanceJournalFrame, 1)
+                end
+                IJ_ShowEncounter(instance)
+                if IsWorldMapFullscreen() then HideUIPanel(WorldMapFrame) end
+            else
+                SetMapZoom(tonumber(instance.MapId), 1)
+            end
         end
     end
 end
@@ -883,6 +1204,10 @@ coreFrame:SetScript("OnEvent", function()
         MMM:InvalidateCache()
         MMM:RefreshMarkers()
 
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        ScheduleAtlasPriming()
+        this:UnregisterEvent("PLAYER_ENTERING_WORLD")
+
     elseif event == "PLAYER_LOGOUT" then
         if not ModernMapMarkersDB then ModernMapMarkersDB = {} end
         ModernMapMarkersDB.filters = {}
@@ -893,4 +1218,5 @@ coreFrame:SetScript("OnEvent", function()
 end)
 
 coreFrame:RegisterEvent("VARIABLES_LOADED")
+coreFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 coreFrame:RegisterEvent("PLAYER_LOGOUT")
