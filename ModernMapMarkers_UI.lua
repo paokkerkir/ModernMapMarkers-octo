@@ -21,6 +21,7 @@ local function RestoreMMMAlpha()
     if filterFrame then filterFrame:SetAlpha(1) end
     if findFrame   then findFrame:SetAlpha(1)   end
     if panel       then panel:SetAlpha(1)       end
+    if MMM and MMM.RestorePinAlpha then MMM.RestorePinAlpha() end
 end
 
 local function HookCartographerAlpha()

@@ -1,4 +1,6 @@
-local MMM = CreateFrame("Frame", "ModernMapMarkersCore", UIParent)
+MMM = MMM or {}
+
+local coreFrame = CreateFrame("Frame", "ModernMapMarkersCore", UIParent)
 MMM.markers = {}
 MMM.Data = {}
 MMM.ZoneMarkers = {}
@@ -337,6 +339,52 @@ function MMM:HideAllMarkers()
     self:HideMarkersFrom(1)
 end
 
+local function ShowPinTooltip(pin)
+    WorldMapTooltip:SetOwner(pin, "ANCHOR_RIGHT")
+    WorldMapTooltip:AddLine(pin.name, 1, 0.82, 0)
+
+    if pin.description then
+        if pin.markerType == "DUNGEON" or pin.markerType == "RAID" or pin.markerType == "WORLDBOSS" then
+            local lvlLabel = L:GetLocalizedMarkerName("Level") or "Level"
+            local desc = pin.description
+            local _, _, _, maxStr = string.find(desc, "^(%d+)-(%d+)$")
+            local maxLevel = tonumber(maxStr or desc)
+            if maxLevel and MMM.GetLevelColor then
+                local r, g, b = MMM.GetLevelColor(maxLevel)
+                desc = string.format("|cff%02X%02X%02X%s|r", r * 255, g * 255, b * 255, desc)
+            end
+            WorldMapTooltip:AddLine(lvlLabel .. ": " .. desc, 1, 1, 1, 1)
+        elseif pin.description == "Alliance" then
+            WorldMapTooltip:AddLine(L:GetLocalizedMarkerName("Alliance"), 0.0, 0.47, 1.0, 1)
+        elseif pin.description == "Horde" then
+            WorldMapTooltip:AddLine(L:GetLocalizedMarkerName("Horde"), 1.0, 0.0, 0.0, 1)
+        else
+            WorldMapTooltip:AddLine(L:GetLocalizedMarkerName(pin.description), 1, 1, 1, 1)
+        end
+    end
+
+    -- Click hints
+    if pin.atlasID and (AtlasCFM or AtlasTW) then
+        WorldMapTooltip:AddLine("Click: Atlas", 0.5, 0.5, 0.5)
+    elseif pin.dest then
+        if pin.dest2 then
+            WorldMapTooltip:AddLine("Left-click: " .. pin.dest[2], 0.5, 0.5, 0.5)
+            WorldMapTooltip:AddLine("Right-click: " .. pin.dest2[2], 0.5, 0.5, 0.5)
+        else
+            WorldMapTooltip:AddLine("Click: Navigate to destination", 0.5, 0.5, 0.5)
+        end
+    end
+
+    WorldMapTooltip:Show()
+end
+
+function MMM.RestorePinAlpha()
+    for i = 1, table.getn(MMM.markers) do
+        local pin = MMM.markers[i]
+        if pin and pin:IsShown() then pin:SetAlpha(1) end
+    end
+end
+
 -- Hide markers from startIndex onwards
 function MMM:HideMarkersFrom(startIndex)
     for i = startIndex, table.getn(self.markers) do
@@ -434,35 +482,7 @@ function MMM:GetOrCreateMarker(index)
         marker:SetScript("OnClick", function() MMM:OnMarkerClick(this, arg1) end)
 
         marker:SetScript("OnEnter", function()
-            WorldMapTooltip:SetOwner(this, "ANCHOR_RIGHT")
-            WorldMapTooltip:AddLine(this.name, 1, 0.82, 0)
-
-            if this.description then
-                if this.markerType == "DUNGEON" or this.markerType == "RAID" or this.markerType == "WORLDBOSS" then
-                    local lvlLabel = L:GetLocalizedMarkerName("Level") or "Level"
-                    WorldMapTooltip:AddLine(lvlLabel .. ": " .. this.description, 1, 1, 1, 1)
-                elseif this.description == "Alliance" then
-                    WorldMapTooltip:AddLine(L:GetLocalizedMarkerName("Alliance"), 0.0, 0.47, 1.0, 1)
-                elseif this.description == "Horde" then
-                    WorldMapTooltip:AddLine(L:GetLocalizedMarkerName("Horde"), 1.0, 0.0, 0.0, 1)
-                else
-                    WorldMapTooltip:AddLine(L:GetLocalizedMarkerName(this.description), 1, 1, 1, 1)
-                end
-            end
-
-            -- Click hints
-            if this.atlasID and (AtlasCFM or AtlasTW) then
-                WorldMapTooltip:AddLine("Click: Atlas", 0.5, 0.5, 0.5)
-            elseif this.dest then
-                if this.dest2 then
-                    WorldMapTooltip:AddLine("Left-click: " .. this.dest[2], 0.5, 0.5, 0.5)
-                    WorldMapTooltip:AddLine("Right-click: " .. this.dest2[2], 0.5, 0.5, 0.5)
-                else
-                    WorldMapTooltip:AddLine("Click: Navigate to destination", 0.5, 0.5, 0.5)
-                end
-            end
-
-            WorldMapTooltip:Show()
+            ShowPinTooltip(this)
         end)
 
         marker:SetScript("OnLeave", function() WorldMapTooltip:Hide() end)
@@ -534,7 +554,7 @@ function WorldMapFrame_Update()
     MMM:RefreshMarkers()
 end
 
-MMM:SetScript("OnEvent", function()
+coreFrame:SetScript("OnEvent", function()
     if event == "VARIABLES_LOADED" then
         if ModernMapMarkersDB and ModernMapMarkersDB.filters then
             for k, v in pairs(ModernMapMarkersDB.filters) do
@@ -640,7 +660,12 @@ MMM:SetScript("OnEvent", function()
                                         local minLvl = inst.MinLevel or 0
                                         local maxLvl = inst.MaxLevel or 0
                                         local lvlLabel = L:GetLocalizedMarkerName("Level") or "Level"
-                                        WorldMapTooltip:AddLine(lvlLabel .. ": " .. minLvl .. "-" .. maxLvl, 1, 1, 1, 1)
+                                        local rangeStr = minLvl .. "-" .. maxLvl
+                                        if maxLvl > 0 and MMM.GetLevelColor then
+                                            local r, g, b = MMM.GetLevelColor(maxLvl)
+                                            rangeStr = string.format("|cff%02X%02X%02X%s|r", r * 255, g * 255, b * 255, rangeStr)
+                                        end
+                                        WorldMapTooltip:AddLine(lvlLabel .. ": " .. rangeStr, 1, 1, 1, 1)
                                         WorldMapTooltip:AddLine(L:GetLocalizedMarkerName("Left-Click: View Map"), 0.5, 0.5, 0.5)
                                         WorldMapTooltip:AddLine(L:GetLocalizedMarkerName("Right-Click: Instance Journal"), 0.5, 0.5, 0.5)
                                         WorldMapTooltip:Show()
@@ -693,5 +718,6 @@ MMM:SetScript("OnEvent", function()
         end
     end
 end)
-MMM:RegisterEvent("VARIABLES_LOADED")
-MMM:RegisterEvent("PLAYER_LOGOUT")
+
+coreFrame:RegisterEvent("VARIABLES_LOADED")
+coreFrame:RegisterEvent("PLAYER_LOGOUT")
