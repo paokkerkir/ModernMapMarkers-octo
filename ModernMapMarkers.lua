@@ -116,8 +116,8 @@ local NORMAL_ATLAS_ALIASES = {
     ["ScarletMonasteryCathedral"] = "SMCathedral",
     ["ScarletMonasteryGraveyard"] = "SMGraveyard",
     ["ScarletMonasteryLibrary"]   = "SMLibrary",
-    ["TheRuinsofAhnQiraj"]        = "AhnQirajRuins",
-    ["TheTempleofAhnQiraj"]       = "AhnQirajTemple",
+    ["TheRuinsofAhnQiraj"]        = { "AhnQirajRuins", "RuinsofAhnQiraj" },
+    ["TheTempleofAhnQiraj"]       = { "AhnQirajTemple", "TempleofAhnQiraj" },
 }
 
 local ATLASLOOT_WORLD_BOSS = {
@@ -612,8 +612,14 @@ local function NormalAtlas_FindIndices(zoneKey)
     local alias = NORMAL_ATLAS_ALIASES[zoneKey]
     for t, zones in pairs(ATLAS_DROPDOWNS) do
         for z, id in pairs(zones) do
-            if id == zoneKey or (alias and id == alias) then
+            if id == zoneKey then
                 return t, z, id
+            elseif type(alias) == "string" and id == alias then
+                return t, z, id
+            elseif type(alias) == "table" then
+                for _, cand in ipairs(alias) do
+                    if id == cand then return t, z, id end
+                end
             end
         end
     end
