@@ -1,3 +1,5 @@
+MMM = MMM or {}
+
 local MMM_GUI = {}
 local isPfUI = IsAddOnLoaded and IsAddOnLoaded("pfUI")
 local L = ModernMapMarkers_Locale
@@ -71,6 +73,28 @@ local function PositionDropdowns()
         findFrame:ClearAllPoints()
         findFrame:SetPoint("TOPRIGHT", filterFrame, "BOTTOMRIGHT", 0, 0)
     end
+end
+
+function MMM.GetLevelColor(level)
+    local delta = level - UnitLevel("player")
+    if     delta >= 5  then return 1,    0.1,  0.1
+    elseif delta >= 1  then return 1,    0.5,  0.25
+    elseif delta >= -4 then return 1,    1,    0
+    elseif delta >= -9 then return 0.25, 0.75, 0.25
+    else                    return 0.6,  0.6,  0.6
+    end
+end
+
+local function MakeLvlString(description)
+    if not description or description == "" then return "" end
+    local lvlLabel = L:GetLocalizedMarkerName("Level") or "Level"
+    local _, _, _, maxStr = string.find(description, "^(%d+)-(%d+)$")
+    local maxLevel = tonumber(maxStr or description)
+    if maxLevel then
+        local r, g, b = MMM.GetLevelColor(maxLevel)
+        return string.format("%s |cff%02X%02X%02X%s|r", lvlLabel, r * 255, g * 255, b * 255, description)
+    end
+    return lvlLabel .. " " .. description
 end
 
 function MMM_GUI.InitializeWorldMapControls()
@@ -270,20 +294,28 @@ function MMM_GUI.InitializeWorldMapControls()
                 if panel:IsVisible() then
                     panel:Hide()
                 else
-                    UpdateFindPanel()
+                    local c = GetCurrentMapContinent()
                     panel:Show()
+                    UpdateFindPanel((c == 1 or c == 2) and c or nil)
                 end
             end
         end)
     end
 
     -- Find Marker Panel
-    local PANEL_WIDTH = 220
-    local ROW_HEIGHT = 16
-    local MAX_VISIBLE_ROWS = 12
-    local BUTTON_HEIGHT = 20
-    local BUTTON_SPACING = 2
-    local PANEL_PADDING = 8
+    local PANEL_WIDTH      = 280
+    local ROW_HEIGHT       = 16
+    local MAX_VISIBLE_ROWS = 14
+    local BUTTON_HEIGHT    = 20
+    local BUTTON_SPACING   = 2
+    local PANEL_PADDING    = 8
+    local listAreaTop      = PANEL_PADDING + BUTTON_HEIGHT * 2 + BUTTON_SPACING * 2 + 4
+
+    local FIND_TYPES = {
+        { id = "DUNGEON",   label = L:GetLocalizedMarkerName("Dungeons") },
+        { id = "RAID",      label = L:GetLocalizedMarkerName("Raids") },
+        { id = "WORLDBOSS", label = L:GetLocalizedMarkerName("World Bosses") },
+    }
 
     local findPanel = CreateFrame("Frame", "ModernMapMarkersFind_Panel", WorldMapFrame)
     findPanel:SetFrameStrata(filterFrame:GetFrameStrata())
@@ -301,40 +333,35 @@ function MMM_GUI.InitializeWorldMapControls()
     findPanel:Hide()
 
     local activeContinent = 1
-    local activeType = "DUNGEON"
+    local activeType      = "DUNGEON"
+    local displayList     = {}
+
+    local UpdateButtonStates
+    local RefreshFindList
 
     local function CreateSelectorButton(name, parent, width, text)
         local btn = CreateFrame("Button", name, parent)
         btn:SetWidth(width)
         btn:SetHeight(BUTTON_HEIGHT)
-
         btn:SetBackdrop({
             bgFile   = "Interface\\DialogFrame\\UI-DialogBox-Background",
             edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
             tile = true, tileSize = 16, edgeSize = 12,
             insets = { left = 2, right = 2, top = 2, bottom = 2 },
         })
-
         local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("CENTER", 0, 0)
         label:SetText(text)
         btn.label = label
-
         btn:SetScript("OnEnter", function()
-            if not btn.isActive then
-                btn:SetBackdropColor(0.3, 0.3, 0.3, 1)
-            end
+            if not this.isActive then this:SetBackdropColor(0.3, 0.3, 0.3, 1) end
         end)
         btn:SetScript("OnLeave", function()
-            if not btn.isActive then
-                btn:SetBackdropColor(0.15, 0.15, 0.15, 1)
-            end
+            if not this.isActive then this:SetBackdropColor(0.15, 0.15, 0.15, 1) end
         end)
-
         btn.isActive = false
         btn:SetBackdropColor(0.15, 0.15, 0.15, 1)
         btn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-
         return btn
     end
 
@@ -361,20 +388,27 @@ function MMM_GUI.InitializeWorldMapControls()
     btnEK:SetPoint("TOPLEFT", btnKalimdor, "TOPRIGHT", BUTTON_SPACING, 0)
 
     -- Type buttons
-    local thirdWidth = (PANEL_WIDTH - PANEL_PADDING * 2 - BUTTON_SPACING * 2) / 3
-
-    local btnDungeon = CreateSelectorButton("MMMFind_Dungeon", findPanel, thirdWidth, L:GetLocalizedMarkerName("Dungeons"))
-    btnDungeon:SetPoint("TOPLEFT", btnKalimdor, "BOTTOMLEFT", 0, -BUTTON_SPACING)
-
-    local btnRaid = CreateSelectorButton("MMMFind_Raid", findPanel, thirdWidth, L:GetLocalizedMarkerName("Raids"))
-    btnRaid:SetPoint("TOPLEFT", btnDungeon, "TOPRIGHT", BUTTON_SPACING, 0)
-
-    local btnWorldBoss = CreateSelectorButton("MMMFind_WorldBoss", findPanel, thirdWidth, L:GetLocalizedMarkerName("World Bosses"))
-    btnWorldBoss:SetPoint("TOPLEFT", btnRaid, "TOPRIGHT", BUTTON_SPACING, 0)
+    local findTypeButtons = {}
+    local numTypes  = table.getn(FIND_TYPES)
+    local typeWidth = (PANEL_WIDTH - PANEL_PADDING * 2 - BUTTON_SPACING * (numTypes - 1)) / numTypes
+    for i = 1, numTypes do
+        local tp  = FIND_TYPES[i]
+        local btn = CreateSelectorButton("MMMFind_Type" .. i, findPanel, typeWidth, tp.label)
+        if i == 1 then
+            btn:SetPoint("TOPLEFT", btnKalimdor, "BOTTOMLEFT", 0, -BUTTON_SPACING)
+        else
+            btn:SetPoint("TOPLEFT", findTypeButtons[i - 1], "TOPRIGHT", BUTTON_SPACING, 0)
+        end
+        local t = tp.id
+        btn:SetScript("OnClick", function()
+            activeType = t
+            UpdateButtonStates()
+            RefreshFindList()
+        end)
+        findTypeButtons[i] = btn
+    end
 
     -- Scroll frame for the instance list
-    local listAreaTop = PANEL_PADDING + BUTTON_HEIGHT * 2 + BUTTON_SPACING * 2 + 4
-
     local scrollFrame = CreateFrame("ScrollFrame", "MMMFind_Scroll", findPanel, "FauxScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", findPanel, "TOPLEFT", PANEL_PADDING, -listAreaTop)
     scrollFrame:SetPoint("BOTTOMRIGHT", findPanel, "BOTTOMRIGHT", -PANEL_PADDING - 22, PANEL_PADDING)
@@ -387,42 +421,56 @@ function MMM_GUI.InitializeWorldMapControls()
         row:SetPoint("TOPLEFT", scrollFrame, "TOPLEFT", 0, -((i - 1) * ROW_HEIGHT))
         row:SetPoint("RIGHT", scrollFrame, "RIGHT", 0, 0)
 
-        local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-        highlight:SetAllPoints(row)
-        highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-        highlight:SetBlendMode("ADD")
-        highlight:SetAlpha(0.4)
+        local hlTex = row:CreateTexture(nil, "OVERLAY")
+        hlTex:SetAllPoints(row)
+        hlTex:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+        hlTex:SetBlendMode("ADD")
+        hlTex:SetAlpha(0.7)
+        hlTex:Hide()
+        row.hlTex = hlTex
 
         local nameText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         nameText:SetPoint("LEFT", row, "LEFT", 4, 0)
+        nameText:SetPoint("RIGHT", row, "RIGHT", -82, 0)
         nameText:SetJustifyH("LEFT")
+        nameText:SetJustifyV("MIDDLE")
         row.nameText = nameText
 
         local lvlText = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        lvlText:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+        lvlText:SetPoint("TOPRIGHT", row, "TOPRIGHT", -4, 0)
+        lvlText:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -4, 0)
         lvlText:SetJustifyH("RIGHT")
+        lvlText:SetJustifyV("MIDDLE")
         row.lvlText = lvlText
 
         row:SetScript("OnEnter", function()
-            if row.dataID then
-                WorldMapTooltip:SetOwner(row, "ANCHOR_LEFT")
-                WorldMapTooltip:AddLine(row.nameText:GetText(), 1, 0.82, 0)
-                if row.lvlText:GetText() and row.lvlText:GetText() ~= "" then
-                    WorldMapTooltip:AddLine(row.lvlText:GetText(), 1, 1, 1)
-                end
-                WorldMapTooltip:Show()
-            end
+            if this.nameRow then this.nameRow.hlTex:Show()
+            else this.hlTex:Show() end
         end)
         row:SetScript("OnLeave", function()
-            WorldMapTooltip:Hide()
+            if this.nameRow then this.nameRow.hlTex:Hide()
+            else this.hlTex:Hide() end
+        end)
+        row:SetScript("OnClick", function()
+            if this.dataID then
+                ModernMapMarkers_FindMarker(this.dataID, this.dataName)
+            end
+        end)
+        row:EnableMouseWheel(true)
+        row:SetScript("OnMouseWheel", function()
+            local sb = getglobal(scrollFrame:GetName() .. "ScrollBar")
+            if sb and scrollFrame:IsVisible() then
+                local minVal, maxVal = sb:GetMinMaxValues()
+                local nextVal = sb:GetValue() - (arg1 * ROW_HEIGHT)
+                if nextVal < minVal then nextVal = minVal end
+                if nextVal > maxVal then nextVal = maxVal end
+                sb:SetValue(nextVal)
+            end
         end)
 
         row:Hide()
         rowButtons[i] = row
     end
-
-    -- Current filtered + sorted list cache
-    local currentList = {}
 
     -- Sort function: level then name
     local function sortLvl(a, b)
@@ -434,74 +482,180 @@ function MMM_GUI.InitializeWorldMapControls()
         return alvl < blvl
     end
 
-    local function RefreshFindList()
+    local function BuildDisplayList()
         local flatData = ModernMapMarkers_GetFlatData()
-        currentList = {}
-
+        local sorted = {}
         for _, data in ipairs(flatData) do
             if data.continent == activeContinent and data.type == activeType then
-                table.insert(currentList, data)
+                table.insert(sorted, data)
             end
         end
-        table.sort(currentList, sortLvl)
+        table.sort(sorted, sortLvl)
 
-        local totalRows = table.getn(currentList)
-        local displayRows = math.min(totalRows, MAX_VISIBLE_ROWS)
-
-        local panelHeight = listAreaTop + (displayRows * ROW_HEIGHT) + PANEL_PADDING + 4
-        if totalRows > MAX_VISIBLE_ROWS then
-            panelHeight = listAreaTop + (MAX_VISIBLE_ROWS * ROW_HEIGHT) + PANEL_PADDING + 4
+        displayList = {}
+        for _, data in ipairs(sorted) do
+            local baseName = L:GetLocalizedMarkerName(data.name)
+            local comment
+            local nl = string.find(baseName, "\n")
+            if nl then
+                comment  = string.sub(baseName, nl + 1)
+                baseName = string.sub(baseName, 1, nl - 1)
+                local _, ce = string.find(comment, "^|c%x%x%x%x%x%x%x%x")
+                if ce then comment = string.sub(comment, ce + 1) end
+                local rs = string.find(comment, "|r$")
+                if rs then comment = string.sub(comment, 1, rs - 1) end
+            end
+            table.insert(displayList, {
+                kind       = "name",
+                text       = baseName,
+                lvlText    = MakeLvlString(data.description),
+                dataID     = data.id,
+                dataName   = data.name,
+                hasComment = (comment ~= nil),
+            })
+            if comment then
+                table.insert(displayList, { kind = "comment", text = comment })
+            end
         end
-        findPanel:SetHeight(panelHeight)
+    end
 
-        FauxScrollFrame_Update(scrollFrame, totalRows, MAX_VISIBLE_ROWS, ROW_HEIGHT)
+    local function DrawRows()
+        for i = 1, MAX_VISIBLE_ROWS do
+            rowButtons[i].hlTex:Hide()
+        end
 
         local offset = FauxScrollFrame_GetOffset(scrollFrame)
-        local lvlLabel = L:GetLocalizedMarkerName("Level") or "Level"
-
+        local total  = table.getn(displayList)
         for i = 1, MAX_VISIBLE_ROWS do
             local row = rowButtons[i]
-            local dataIndex = offset + i
-
-            if dataIndex <= totalRows then
-                local data = currentList[dataIndex]
-                local localizedName = L:GetLocalizedMarkerName(data.name)
-                row.nameText:SetText(localizedName)
-
-                if data.description then
-                    row.lvlText:SetText(lvlLabel .. " " .. data.description)
+            local idx = offset + i
+            if idx <= total then
+                local slot = displayList[idx]
+                if slot.kind == "name" then
+                    row.nameRow = nil
+                    row.nameText:ClearAllPoints()
+                    row.nameText:SetPoint("LEFT", row, "LEFT", 4, 0)
+                    row.nameText:SetPoint("RIGHT", row, "RIGHT", -82, 0)
+                    row.nameText:SetTextColor(1, 1, 1)
+                    row.nameText:SetText(slot.text)
+                    row.lvlText:SetText(slot.lvlText or "")
+                    row.dataID   = slot.dataID
+                    row.dataName = slot.dataName
+                    if slot.hasComment and i < MAX_VISIBLE_ROWS then
+                        row.hlTex:ClearAllPoints()
+                        row.hlTex:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+                        row.hlTex:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, -ROW_HEIGHT)
+                    else
+                        row.hlTex:ClearAllPoints()
+                        row.hlTex:SetAllPoints(row)
+                    end
+                    row.hlTex:Hide()
                 else
+                    local parent = displayList[idx - 1]
+                    row.nameRow = rowButtons[i - 1]
+                    row.nameText:ClearAllPoints()
+                    row.nameText:SetPoint("LEFT", row, "LEFT", 4, 0)
+                    row.nameText:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+                    row.nameText:SetTextColor(0.55, 0.55, 0.55)
+                    row.nameText:SetText(slot.text)
                     row.lvlText:SetText("")
+                    row.dataID   = parent and parent.dataID or nil
+                    row.dataName = parent and parent.dataName or nil
                 end
-
-                row.nameText:SetWidth(row:GetWidth() - row.lvlText:GetStringWidth() - 16)
-
-                row.dataID = data.id
-                row:SetScript("OnClick", function()
-                    ModernMapMarkers_FindMarker(data.id)
-                end)
                 row:Show()
             else
+                row.nameRow  = nil
+                row.dataID   = nil
+                row.dataName = nil
                 row.nameText:SetText("")
+                row.nameText:SetTextColor(1, 1, 1)
                 row.lvlText:SetText("")
-                row.dataID = nil
+                row.hlTex:ClearAllPoints()
+                row.hlTex:SetAllPoints(row)
+                row.hlTex:Hide()
                 row:Hide()
             end
         end
     end
 
-    scrollFrame:SetScript("OnVerticalScroll", function()
-        FauxScrollFrame_OnVerticalScroll(ROW_HEIGHT, RefreshFindList)
-    end)
+    UpdateButtonStates = function(continent)
+        if continent then activeContinent = continent end
+        SetButtonActive(btnKalimdor, activeContinent == 1)
+        SetButtonActive(btnEK,       activeContinent == 2)
 
-    -- Button click handlers
-    local function UpdateButtonStates()
-        SetButtonActive(btnKalimdor,  activeContinent == 1)
-        SetButtonActive(btnEK,        activeContinent == 2)
-        SetButtonActive(btnDungeon,   activeType == "DUNGEON")
-        SetButtonActive(btnRaid,      activeType == "RAID")
-        SetButtonActive(btnWorldBoss, activeType == "WORLDBOSS")
+        local flatData    = ModernMapMarkers_GetFlatData()
+        local typeVisible = {}
+        for i = 1, numTypes do typeVisible[i] = false end
+        for _, d in ipairs(flatData) do
+            if d.continent == activeContinent then
+                for i = 1, numTypes do
+                    if FIND_TYPES[i].id == d.type then typeVisible[i] = true end
+                end
+            end
+        end
+
+        local valid = false
+        for i = 1, numTypes do
+            if FIND_TYPES[i].id == activeType and typeVisible[i] then
+                valid = true
+                break
+            end
+        end
+        if not valid then
+            for i = 1, numTypes do
+                if typeVisible[i] then
+                    activeType = FIND_TYPES[i].id
+                    break
+                end
+            end
+        end
+
+        local visible = {}
+        for i = 1, numTypes do
+            if typeVisible[i] then
+                table.insert(visible, findTypeButtons[i])
+                findTypeButtons[i]:Show()
+            else
+                findTypeButtons[i]:Hide()
+            end
+        end
+
+        local n = table.getn(visible)
+        if n > 0 then
+            local btnW = (PANEL_WIDTH - PANEL_PADDING * 2 - BUTTON_SPACING * (n - 1)) / n
+            for j = 1, n do
+                visible[j]:SetWidth(btnW)
+                visible[j]:ClearAllPoints()
+                if j == 1 then
+                    visible[j]:SetPoint("TOPLEFT", btnKalimdor, "BOTTOMLEFT", 0, -BUTTON_SPACING)
+                else
+                    visible[j]:SetPoint("TOPLEFT", visible[j - 1], "TOPRIGHT", BUTTON_SPACING, 0)
+                end
+            end
+        end
+
+        for i = 1, numTypes do
+            SetButtonActive(findTypeButtons[i], FIND_TYPES[i].id == activeType)
+        end
     end
+
+    RefreshFindList = function()
+        BuildDisplayList()
+        local total = table.getn(displayList)
+        findPanel:SetHeight(listAreaTop + math.min(total, MAX_VISIBLE_ROWS) * ROW_HEIGHT + PANEL_PADDING + 4)
+        FauxScrollFrame_SetOffset(scrollFrame, 0)
+        local sb = getglobal(scrollFrame:GetName() .. "ScrollBar")
+        if sb then sb:SetValue(0) end
+        FauxScrollFrame_Update(scrollFrame, total, MAX_VISIBLE_ROWS, ROW_HEIGHT)
+        DrawRows()
+    end
+
+    scrollFrame:SetScript("OnVerticalScroll", function()
+        FauxScrollFrame_OnVerticalScroll(ROW_HEIGHT, function()
+            FauxScrollFrame_Update(scrollFrame, table.getn(displayList), MAX_VISIBLE_ROWS, ROW_HEIGHT)
+            DrawRows()
+        end)
+    end)
 
     btnKalimdor:SetScript("OnClick", function()
         activeContinent = 1
@@ -515,26 +669,8 @@ function MMM_GUI.InitializeWorldMapControls()
         RefreshFindList()
     end)
 
-    btnDungeon:SetScript("OnClick", function()
-        activeType = "DUNGEON"
-        UpdateButtonStates()
-        RefreshFindList()
-    end)
-
-    btnRaid:SetScript("OnClick", function()
-        activeType = "RAID"
-        UpdateButtonStates()
-        RefreshFindList()
-    end)
-
-    btnWorldBoss:SetScript("OnClick", function()
-        activeType = "WORLDBOSS"
-        UpdateButtonStates()
-        RefreshFindList()
-    end)
-
-    function UpdateFindPanel()
-        UpdateButtonStates()
+    function UpdateFindPanel(continent)
+        UpdateButtonStates(continent)
         RefreshFindList()
     end
 
@@ -560,9 +696,9 @@ function MMM_GUI.InitializeWorldMapControls()
         if pfUI.api.SkinButton then
             pfUI.api.SkinButton(btnKalimdor)
             pfUI.api.SkinButton(btnEK)
-            pfUI.api.SkinButton(btnDungeon)
-            pfUI.api.SkinButton(btnRaid)
-            pfUI.api.SkinButton(btnWorldBoss)
+            for i = 1, numTypes do
+                pfUI.api.SkinButton(findTypeButtons[i])
+            end
         end
     end
 
