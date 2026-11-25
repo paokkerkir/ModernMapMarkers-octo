@@ -711,47 +711,86 @@ function MMM_GUI.InitializeWorldMapControls()
 
 end
 
--- Debug Utilities
-SLASH_MMMDEBUG1 = "/mmmzones"
-SlashCmdList["MMMDEBUG"] = function()
-    if not DEFAULT_CHAT_FRAME then return end
-    for contID = 1, 2 do
-        local contName = (contID == 1) and "Kalimdor" or "Eastern Kingdoms"
-        DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModernMapMarkers:|r Zone Indexes for " .. contName .. ":")
-        local zones = { GetMapZones(contID) }
-        for i, zoneName in ipairs(zones) do
-            DEFAULT_CHAT_FRAME:AddMessage("  " .. i .. ": " .. zoneName)
-        end
-    end
-end
-
--- Slash command to toggle dropdown visibility
+-- Slash commands
 SLASH_MMM1 = "/mmm"
-SlashCmdList["MMM"] = function()
+SlashCmdList["MMM"] = function(msg)
+    if MMM.EnsureDBInitialized then MMM.EnsureDBInitialized() end
     if type(ModernMapMarkersDB) ~= "table" then
         ModernMapMarkersDB = { filters = {} }
     end
-    ModernMapMarkersDB.hideDropdowns = not ModernMapMarkersDB.hideDropdowns
+    if ModernMapMarkersDB.showTransportHints == nil then
+        ModernMapMarkersDB.showTransportHints = true
+    end
+    if ModernMapMarkersDB.playPingSound == nil then
+        ModernMapMarkersDB.playPingSound = true
+    end
 
-    local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
-    local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
-    local findPanel   = getglobal("ModernMapMarkersFind_Panel")
+    local cmd = string.lower(string.gsub(msg or "", "^%s*(.-)%s*$", "%1"))
 
-    if filterFrame and findFrame then
-        if ModernMapMarkersDB.hideDropdowns then
-            filterFrame:Hide()
-            findFrame:Hide()
-            if findPanel then findPanel:Hide() end
-            if DEFAULT_CHAT_FRAME then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: " .. L:GetLocalizedMarkerName("Dropdown menus hidden."))
-            end
-        else
-            filterFrame:Show()
-            findFrame:Show()
-            if DEFAULT_CHAT_FRAME then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: " .. L:GetLocalizedMarkerName("Dropdown menus shown."))
+    if cmd == "" then
+        if DEFAULT_CHAT_FRAME then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers commands:")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cFFFFD700/mmm menu|r - Toggle map dropdown menus")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cFFFFD700/mmm hints|r - Toggle transport click hints")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cFFFFD700/mmm sound|r - Toggle map ping sound")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cFFFFD700/mmm zones|r - Print zone indexes")
+        end
+        return
+    elseif cmd == "menu" then
+        ModernMapMarkersDB.hideDropdowns = not ModernMapMarkersDB.hideDropdowns
+
+        local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
+        local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
+        local findPanel   = getglobal("ModernMapMarkersFind_Panel")
+
+        if filterFrame and findFrame then
+            if ModernMapMarkersDB.hideDropdowns then
+                filterFrame:Hide()
+                findFrame:Hide()
+                if findPanel then findPanel:Hide() end
+                if DEFAULT_CHAT_FRAME then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: " .. L:GetLocalizedMarkerName("Dropdown menus hidden."))
+                end
+            else
+                filterFrame:Show()
+                findFrame:Show()
+                if DEFAULT_CHAT_FRAME then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: " .. L:GetLocalizedMarkerName("Dropdown menus shown."))
+                end
             end
         end
+        return
+    elseif cmd == "hints" then
+        ModernMapMarkersDB.showTransportHints = not ModernMapMarkersDB.showTransportHints
+        if MMM.RefreshVisibleTooltip then MMM.RefreshVisibleTooltip() end
+        if DEFAULT_CHAT_FRAME then
+            local stateText = ModernMapMarkersDB.showTransportHints and "shown." or "hidden."
+            DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: Transport hints " .. stateText)
+        end
+        return
+    elseif cmd == "sound" then
+        ModernMapMarkersDB.playPingSound = not ModernMapMarkersDB.playPingSound
+        if DEFAULT_CHAT_FRAME then
+            local stateText = ModernMapMarkersDB.playPingSound and "enabled." or "disabled."
+            DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: Ping sound " .. stateText)
+        end
+        return
+    elseif cmd == "zones" then
+        if not DEFAULT_CHAT_FRAME then return end
+        for contID = 1, 2 do
+            local contName = (contID == 1) and "Kalimdor" or "Eastern Kingdoms"
+            DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModernMapMarkers:|r Zone Indexes for " .. contName .. ":")
+            local zones = { GetMapZones(contID) }
+            for i, zoneName in ipairs(zones) do
+                DEFAULT_CHAT_FRAME:AddMessage("  " .. i .. ": " .. zoneName)
+            end
+        end
+        return
+    else
+        if DEFAULT_CHAT_FRAME then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: Unknown command. Type |cFFFFD700/mmm|r for commands.")
+        end
+        return
     end
 end
 

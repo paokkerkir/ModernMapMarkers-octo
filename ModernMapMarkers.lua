@@ -451,7 +451,7 @@ local function ShowPinTooltip(pin)
     -- Click hints
     if pin.atlasID and (AtlasCFM or AtlasTW) then
         WorldMapTooltip:AddLine("Click: Atlas", 0.5, 0.5, 0.5)
-    elseif pin.dest then
+    elseif pin.dest and (not ModernMapMarkersDB or ModernMapMarkersDB.showTransportHints ~= false) then
         if pin.dest2 then
             WorldMapTooltip:AddLine("Left-click: " .. pin.dest[2], 0.5, 0.5, 0.5)
             WorldMapTooltip:AddLine("Right-click: " .. pin.dest2[2], 0.5, 0.5, 0.5)
@@ -467,6 +467,31 @@ function MMM.RestorePinAlpha()
     for i = 1, table.getn(MMM.markers) do
         local pin = MMM.markers[i]
         if pin and pin:IsShown() then pin:SetAlpha(1) end
+    end
+end
+
+function MMM.RefreshVisibleTooltip()
+    for i = 1, table.getn(MMM.markers) do
+        local pin = MMM.markers[i]
+        if pin and pin:IsVisible() and MouseIsOver(pin) then
+            ShowPinTooltip(pin)
+            return
+        end
+    end
+end
+
+local dbInitialized = false
+function MMM.EnsureDBInitialized()
+    if dbInitialized then return end
+    dbInitialized = true
+    if type(ModernMapMarkersDB) ~= "table" then
+        ModernMapMarkersDB = {}
+    end
+    if ModernMapMarkersDB.showTransportHints == nil then
+        ModernMapMarkersDB.showTransportHints = true
+    end
+    if ModernMapMarkersDB.playPingSound == nil then
+        ModernMapMarkersDB.playPingSound = true
     end
 end
 
@@ -550,7 +575,9 @@ function MMM:OnMarkerClick(marker, button)
         local origZoneNames = ZONE_CACHE[origC]
         local origZoneEN = origZoneNames and origZoneNames[origZ] and L:GetEnglishZoneName(origZoneNames[origZ]) or marker.zoneName
 
-        PlaySoundFile(SOUND_PING)
+        if not ModernMapMarkersDB or ModernMapMarkersDB.playPingSound ~= false then
+            PlaySoundFile(SOUND_PING)
+        end
 
         if target[1] == origC and target[2] == origZoneEN then
             for i = 1, table.getn(self.markers) do
@@ -669,7 +696,9 @@ function ModernMapMarkers_FindMarker(dataIndex, matchName)
     end
 
     MMM.pendingHighlight = matchName or data.name
-    PlaySoundFile(SOUND_PING)
+    if not ModernMapMarkersDB or ModernMapMarkersDB.playPingSound ~= false then
+        PlaySoundFile(SOUND_PING)
+    end
 
     local zoneIndex = MMM:GetZoneIndex(data.continent, data.zoneName)
     if zoneIndex > 0 then
@@ -705,6 +734,7 @@ coreFrame:SetScript("OnEvent", function()
             end
         end
 
+        MMM.EnsureDBInitialized()
         L:Initialize()
         MMM:CacheZones()
         MMM:BuildData()
