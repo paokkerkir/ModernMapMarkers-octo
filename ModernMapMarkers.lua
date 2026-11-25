@@ -520,6 +520,12 @@ function MMM:GetIJInstance(nameEN)
     return dbTable[mapping.key]
 end
 
+local function IsWorldMapFullscreen()
+    if BlackoutWorld and BlackoutWorld:IsVisible() then return true end
+    return (WorldMapFrame:GetWidth()  / GetScreenWidth()  > 0.9 and
+            WorldMapFrame:GetHeight() / GetScreenHeight() > 0.9)
+end
+
 -- Atlas Integration (supports Atlas-CFM and Atlas-TW)
 function MMM:OnMarkerClick(marker, button)
     -- Dungeons, raids, world bosses: open Atlas
@@ -536,7 +542,7 @@ function MMM:OnMarkerClick(marker, button)
                         AtlasCFMFrame:Show()
                         AtlasCFM.UpdateDropdownLabels()
                         AtlasCFM.Refresh()
-                        if WorldMapFrame:IsShown() then
+                        if WorldMapFrame:IsVisible() and IsWorldMapFullscreen() then
                             HideUIPanel(WorldMapFrame)
                         end
                         return
@@ -862,7 +868,7 @@ coreFrame:SetScript("OnEvent", function()
                                             PanelTemplates_SetTab(IJ_InstanceJournalFrame, 1)
                                         end
                                         IJ_ShowEncounter(inst)
-                                        WorldMapFrame:Hide()
+                                        if IsWorldMapFullscreen() then HideUIPanel(WorldMapFrame) end
                                     else
                                         if origOnClick then origOnClick() end
                                     end
