@@ -177,8 +177,9 @@ function MMM_GUI.InitializeWorldMapControls()
     -- Filter Dropdown
     local filterFrame = CreateFrame("Frame", "ModernMapMarkersFilter_Blizz", dropdownParent, "UIDropDownMenuTemplate")
 
-    filterFrame:SetFrameStrata(dropdownParent:GetFrameStrata())
-    filterFrame:SetFrameLevel(dropdownParent:GetFrameLevel() + 10)
+    local baseLevel = math.max(dropdownParent:GetFrameLevel() + 10, 15)
+    filterFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+    filterFrame:SetFrameLevel(baseLevel)
 
     local filterBtn = getglobal(filterFrame:GetName().."Button")
     if filterBtn then
@@ -195,6 +196,28 @@ function MMM_GUI.InitializeWorldMapControls()
     PositionDropdowns()
 
     local function InitFilterMenu(level)
+        if DropDownList1 then
+            local targetLevel = filterFrame:GetFrameLevel() + 30
+            if DropDownList1:GetFrameLevel() < targetLevel then
+                DropDownList1:SetFrameLevel(targetLevel)
+                local backdrop = getglobal("DropDownList1Backdrop")
+                if backdrop and backdrop:GetFrameLevel() < targetLevel then
+                    backdrop:SetFrameLevel(targetLevel)
+                end
+                local menuBackdrop = getglobal("DropDownList1MenuBackdrop")
+                if menuBackdrop and menuBackdrop:GetFrameLevel() < targetLevel then
+                    menuBackdrop:SetFrameLevel(targetLevel)
+                end
+                local maxButtons = UIDROPDOWNMENU_MAXBUTTONS or 32
+                for i = 1, maxButtons do
+                    local btn = getglobal("DropDownList1Button" .. i)
+                    if btn and btn:GetFrameLevel() <= targetLevel then
+                        btn:SetFrameLevel(targetLevel + 1)
+                    end
+                end
+            end
+        end
+
         if MMM and MMM.filters then
             local allOn = true
             for _, item in ipairs(filterOptions) do
