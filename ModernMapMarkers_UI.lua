@@ -119,12 +119,12 @@ function MMM_GUI.InitializeWorldMapControls()
     if ModernMapMarkersDB and ModernMapMarkersDB.filters then
         local saved = ModernMapMarkersDB.filters
         for _, item in ipairs(filterOptions) do
-            if item.isCheck and item.value and item.value ~= "ALL" then
+            if item.isCheck and item.value then
                 if item.isRadio then
                     if saved.FACTION ~= nil then
-                        item.checked = (saved.FACTION == item.value) or (item.value == "ALL" and saved.FACTION == "ALL")
+                        item.checked = (saved.FACTION == item.value)
                     end
-                elseif saved[item.value] ~= nil then
+                elseif item.value ~= "ALL" and saved[item.value] ~= nil then
                     item.checked = saved[item.value]
                 end
             end
@@ -195,6 +195,24 @@ function MMM_GUI.InitializeWorldMapControls()
     PositionDropdowns()
 
     local function InitFilterMenu(level)
+        if MMM and MMM.filters then
+            local allOn = true
+            for _, item in ipairs(filterOptions) do
+                if item.isCheck and item.value then
+                    if item.isRadio then
+                        if MMM.filters.FACTION ~= nil then
+                            item.checked = (MMM.filters.FACTION == item.value)
+                        end
+                    elseif item.value ~= "ALL" then
+                        if MMM.filters[item.value] ~= nil then
+                            item.checked = (MMM.filters[item.value] == true)
+                        end
+                        if not item.checked then allOn = false end
+                    end
+                end
+            end
+            filterOptions[1].checked = allOn
+        end
         for _, itemRaw in ipairs(filterOptions) do
             local item = itemRaw
 
