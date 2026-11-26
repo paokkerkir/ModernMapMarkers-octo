@@ -57,7 +57,19 @@ end
 local function PositionDropdowns()
     local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
     local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
+    local findPanel   = getglobal("ModernMapMarkersFind_Panel")
     if not filterFrame then return end
+    local strata = WorldMapFrame:GetFrameStrata()
+    filterFrame:SetFrameStrata(strata)
+    if filterFrame.backdrop then filterFrame.backdrop:SetFrameStrata(strata) end
+    if findFrame then
+        findFrame:SetFrameStrata(strata)
+        if findFrame.backdrop then findFrame.backdrop:SetFrameStrata(strata) end
+    end
+    if findPanel then
+        findPanel:SetFrameStrata(strata)
+        if findPanel.backdrop then findPanel.backdrop:SetFrameStrata(strata) end
+    end
     filterFrame:ClearAllPoints()
     if pfLevelDrop then
         filterFrame:SetPoint("TOPRIGHT", pfLevelDrop, "BOTTOMRIGHT", 0, 0)
@@ -177,9 +189,7 @@ function MMM_GUI.InitializeWorldMapControls()
     -- Filter Dropdown
     local filterFrame = CreateFrame("Frame", "ModernMapMarkersFilter_Blizz", dropdownParent, "UIDropDownMenuTemplate")
 
-    local baseLevel = math.max(dropdownParent:GetFrameLevel() + 10, 15)
-    filterFrame:SetFrameStrata("FULLSCREEN_DIALOG")
-    filterFrame:SetFrameLevel(baseLevel)
+    filterFrame:SetFrameLevel(dropdownParent:GetFrameLevel() + 3)
 
     local filterBtn = getglobal(filterFrame:GetName().."Button")
     if filterBtn then
@@ -196,28 +206,6 @@ function MMM_GUI.InitializeWorldMapControls()
     PositionDropdowns()
 
     local function InitFilterMenu(level)
-        if DropDownList1 then
-            local targetLevel = filterFrame:GetFrameLevel() + 30
-            if DropDownList1:GetFrameLevel() < targetLevel then
-                DropDownList1:SetFrameLevel(targetLevel)
-                local backdrop = getglobal("DropDownList1Backdrop")
-                if backdrop and backdrop:GetFrameLevel() < targetLevel then
-                    backdrop:SetFrameLevel(targetLevel)
-                end
-                local menuBackdrop = getglobal("DropDownList1MenuBackdrop")
-                if menuBackdrop and menuBackdrop:GetFrameLevel() < targetLevel then
-                    menuBackdrop:SetFrameLevel(targetLevel)
-                end
-                local maxButtons = UIDROPDOWNMENU_MAXBUTTONS or 32
-                for i = 1, maxButtons do
-                    local btn = getglobal("DropDownList1Button" .. i)
-                    if btn and btn:GetFrameLevel() <= targetLevel then
-                        btn:SetFrameLevel(targetLevel + 1)
-                    end
-                end
-            end
-        end
-
         if MMM and MMM.filters then
             local allOn = true
             for _, item in ipairs(filterOptions) do
@@ -301,7 +289,6 @@ function MMM_GUI.InitializeWorldMapControls()
 
     -- Find Marker Toggle (UIDropDownMenuTemplate to match filter style)
     local findFrame = CreateFrame("Frame", "ModernMapMarkersFind_Blizz", dropdownParent, "UIDropDownMenuTemplate")
-    findFrame:SetFrameStrata(filterFrame:GetFrameStrata())
     findFrame:SetFrameLevel(filterFrame:GetFrameLevel())
 
     local findBtn = getglobal(findFrame:GetName().."Button")
@@ -349,8 +336,7 @@ function MMM_GUI.InitializeWorldMapControls()
     }
 
     local findPanel = CreateFrame("Frame", "ModernMapMarkersFind_Panel", WorldMapFrame)
-    findPanel:SetFrameStrata(filterFrame:GetFrameStrata())
-    findPanel:SetFrameLevel(filterFrame:GetFrameLevel() + 20)
+    findPanel:SetFrameLevel(filterFrame:GetFrameLevel() + 5)
     findPanel:SetWidth(PANEL_WIDTH)
     findPanel:SetPoint("TOPRIGHT", findFrame, "BOTTOMRIGHT", -16, 0)
     findPanel:SetBackdrop({
@@ -852,7 +838,7 @@ initFrame:SetScript("OnEvent", function()
     elseif event == "PLAYER_ENTERING_WORLD" then
         ResolveCompatState()
         PositionDropdowns()
-        if (isShaguMap or isPfUIMapOn) and not pfDrop then
+        if isShaguMap or isPfUIMapOn then
             local deferFrame = CreateFrame("Frame")
             deferFrame:SetScript("OnUpdate", function()
                 this:SetScript("OnUpdate", nil)
