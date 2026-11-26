@@ -297,7 +297,7 @@ function MMM_GUI.InitializeWorldMapControls()
                 else
                     local c = GetCurrentMapContinent()
                     panel:Show()
-                    UpdateFindPanel((c == 1 or c == 2) and c or nil)
+                    UpdateFindPanel((c == 1 or c == 2 or c == 0) and c or nil)
                 end
             end
         end)
@@ -380,13 +380,18 @@ function MMM_GUI.InitializeWorldMapControls()
     end
 
     -- Continent buttons
-    local halfWidth = (PANEL_WIDTH - PANEL_PADDING * 2 - BUTTON_SPACING) / 2
+    local kalWidth = 86
+    local ekWidth  = 124
+    local allWidth = PANEL_WIDTH - PANEL_PADDING * 2 - BUTTON_SPACING * 2 - kalWidth - ekWidth
 
-    local btnKalimdor = CreateSelectorButton("MMMFind_Kalimdor", findPanel, halfWidth, L:GetLocalizedZoneName("Kalimdor"))
+    local btnKalimdor = CreateSelectorButton("MMMFind_Kalimdor", findPanel, kalWidth, L:GetLocalizedZoneName("Kalimdor"))
     btnKalimdor:SetPoint("TOPLEFT", findPanel, "TOPLEFT", PANEL_PADDING, -PANEL_PADDING)
 
-    local btnEK = CreateSelectorButton("MMMFind_EK", findPanel, halfWidth, L:GetLocalizedZoneName("Eastern Kingdoms"))
+    local btnEK = CreateSelectorButton("MMMFind_EK", findPanel, ekWidth, L:GetLocalizedZoneName("Eastern Kingdoms"))
     btnEK:SetPoint("TOPLEFT", btnKalimdor, "TOPRIGHT", BUTTON_SPACING, 0)
+
+    local btnAll = CreateSelectorButton("MMMFind_All", findPanel, allWidth, L:GetLocalizedMarkerName("All"))
+    btnAll:SetPoint("TOPLEFT", btnEK, "TOPRIGHT", BUTTON_SPACING, 0)
 
     -- Type buttons
     local findTypeButtons = {}
@@ -487,7 +492,7 @@ function MMM_GUI.InitializeWorldMapControls()
         local flatData = ModernMapMarkers_GetFlatData()
         local sorted = {}
         for _, data in ipairs(flatData) do
-            if data.continent == activeContinent and data.type == activeType then
+            if (activeContinent == 0 or data.continent == activeContinent) and data.type == activeType then
                 table.insert(sorted, data)
             end
         end
@@ -580,15 +585,16 @@ function MMM_GUI.InitializeWorldMapControls()
     end
 
     UpdateButtonStates = function(continent)
-        if continent then activeContinent = continent end
+        if continent ~= nil then activeContinent = continent end
         SetButtonActive(btnKalimdor, activeContinent == 1)
         SetButtonActive(btnEK,       activeContinent == 2)
+        SetButtonActive(btnAll,      activeContinent == 0)
 
         local flatData    = ModernMapMarkers_GetFlatData()
         local typeVisible = {}
         for i = 1, numTypes do typeVisible[i] = false end
         for _, d in ipairs(flatData) do
-            if d.continent == activeContinent then
+            if activeContinent == 0 or d.continent == activeContinent then
                 for i = 1, numTypes do
                     if FIND_TYPES[i].id == d.type then typeVisible[i] = true end
                 end
@@ -670,6 +676,12 @@ function MMM_GUI.InitializeWorldMapControls()
         RefreshFindList()
     end)
 
+    btnAll:SetScript("OnClick", function()
+        activeContinent = 0
+        UpdateButtonStates()
+        RefreshFindList()
+    end)
+
     function UpdateFindPanel(continent)
         UpdateButtonStates(continent)
         RefreshFindList()
@@ -697,6 +709,7 @@ function MMM_GUI.InitializeWorldMapControls()
         if pfUI.api.SkinButton then
             pfUI.api.SkinButton(btnKalimdor)
             pfUI.api.SkinButton(btnEK)
+            pfUI.api.SkinButton(btnAll)
             for i = 1, numTypes do
                 pfUI.api.SkinButton(findTypeButtons[i])
             end
