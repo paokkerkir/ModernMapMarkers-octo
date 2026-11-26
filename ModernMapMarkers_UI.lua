@@ -314,6 +314,8 @@ function MMM_GUI.InitializeWorldMapControls()
     UIDropDownMenu_SetText(L:GetLocalizedMarkerName("Find Marker"), findFrame)
     UIDropDownMenu_JustifyText("RIGHT", findFrame)
 
+    local stickyAll = false
+
     if findBtn then
         findBtn:SetScript("OnClick", function()
             PlaySound("igMainMenuOptionCheckBoxOn")
@@ -325,7 +327,7 @@ function MMM_GUI.InitializeWorldMapControls()
                 else
                     local c = GetCurrentMapContinent()
                     panel:Show()
-                    UpdateFindPanel((c == 1 or c == 2 or c == 0) and c or nil)
+                    UpdateFindPanel((not stickyAll and (c == 1 or c == 2 or c == 0)) and c or nil)
                 end
             end
         end)
@@ -693,18 +695,21 @@ function MMM_GUI.InitializeWorldMapControls()
     end)
 
     btnKalimdor:SetScript("OnClick", function()
+        stickyAll = false
         activeContinent = 1
         UpdateButtonStates()
         RefreshFindList()
     end)
 
     btnEK:SetScript("OnClick", function()
+        stickyAll = false
         activeContinent = 2
         UpdateButtonStates()
         RefreshFindList()
     end)
 
     btnAll:SetScript("OnClick", function()
+        stickyAll = true
         activeContinent = 0
         UpdateButtonStates()
         RefreshFindList()
