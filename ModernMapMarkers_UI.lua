@@ -157,34 +157,21 @@ function MMM_GUI.InitializeWorldMapControls()
     -- Determine Parent Frame (Standard or pfQuest)
     local dropdownParent = WorldMapFrame
 
-    -- Dynamic dropdown width based on longest label
-    local MIN_DROPDOWN_WIDTH = 120
-    local PADDING = 35
+    -- Dynamic dropdown width based on longest button label
+    local MIN_DROPDOWN_WIDTH = 110
+    local PADDING = 26
     local longestLabel = 0
 
-    -- Measure filter labels
-    for _, item in ipairs(filterOptions) do
-        local text = string.gsub(item.label, "^%s+", "")
-        local len = string.len(text)
-        if len > longestLabel then longestLabel = len end
-    end
-
-    -- Also measure button texts and find dropdown labels
     local buttonTexts = {
         L:GetLocalizedMarkerName("Filter Markers"),
         L:GetLocalizedMarkerName("Find Marker"),
-        L:GetLocalizedZoneName("Kalimdor"),
-        L:GetLocalizedZoneName("Eastern Kingdoms"),
-        L:GetLocalizedMarkerName("Dungeons"),
-        L:GetLocalizedMarkerName("Raids"),
     }
     for _, text in ipairs(buttonTexts) do
         local len = string.len(text)
         if len > longestLabel then longestLabel = len end
     end
 
-    -- Approximate width: ~7px per character + padding, with minimum
-    local dropdownWidth = math.max(MIN_DROPDOWN_WIDTH, longestLabel * 7 + PADDING)
+    local dropdownWidth = math.max(MIN_DROPDOWN_WIDTH, longestLabel * 6 + PADDING)
     local dropdownButtonWidth = dropdownWidth + 5
 
     -- Filter Dropdown
