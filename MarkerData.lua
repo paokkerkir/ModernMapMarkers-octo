@@ -55,7 +55,7 @@ ModernMapMarkers_Points = {
             { x=0.53, y=0.486, name="Ragefire Chasm", type="dungeon", info="13-18", atlasID="RagefireChasm", dest=nil },
         },
         ["Silithus"] = {
-            { x=0.296, y=0.960, name="Ruins of Ahn'Qiraj",  type="raid", info="60", atlasID="TheRuinsofAhnQiraj",  dest=nil },
+            { x=0.300, y=0.960, name="Ruins of Ahn'Qiraj",  type="raid", info="60", atlasID="TheRuinsofAhnQiraj",  dest=nil },
             { x=0.282, y=0.956, name="Temple of Ahn'Qiraj", type="raid", info="60", atlasID="TheTempleofAhnQiraj", dest=nil },
         },
         ["Tanaris"] = {
