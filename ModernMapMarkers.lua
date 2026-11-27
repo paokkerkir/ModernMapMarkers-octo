@@ -326,6 +326,21 @@ function MMM:RefreshMarkers()
     lastZone      = currentZone
     forceRefresh  = false
 
+    if MMM.ijInstalled and IJ_CreatedMapInstanceEntrance then
+        local ijKey = tostring(currentContinent) .. ":" .. tostring(currentZone)
+        if IJ_SUBMAP_ZONES[ijKey] then
+            for _, pin in ipairs(IJ_CreatedMapInstanceEntrance) do
+                if pin and pin.mmmFilterKey and pin.mmmSubmapKey == ijKey then
+                    if MMM.filters[pin.mmmFilterKey] then
+                        pin:Show()
+                    else
+                        pin:Hide()
+                    end
+                end
+            end
+        end
+    end
+
     if currentContinent == 0 or currentZone == 0 then
         self:HideAllMarkers()
         return
@@ -940,7 +955,10 @@ function MMM:OnMarkerClick(marker, button)
                 IJ_ShowEncounter(instance)
                 if IsWorldMapFullscreen() then HideUIPanel(WorldMapFrame) end
             else
-                SetMapZoom(tonumber(instance.MapId), 1)
+                local mapId = tonumber(instance.MapId)
+                if mapId then
+                    SetMapZoom(mapId, 1)
+                end
             end
         end
     end
@@ -1141,6 +1159,10 @@ coreFrame:SetScript("OnEvent", function()
                     for _, pin in ipairs(IJ_CreatedMapInstanceEntrance) do
                         local pinName = pin:GetName() or ""
                         if string.find(pinName, prefix, 1, true) and pin:IsVisible() then
+                            pin.mmmFilterKey = filterKey
+                            pin.mmmSubmapKey = key
+                            pin.mmmTexture   = mmmTex
+
                             -- Hide pin if MMM filter is disabled for this type
                             if not MMM.filters[filterKey] then
                                 pin:Hide()
@@ -1148,14 +1170,14 @@ coreFrame:SetScript("OnEvent", function()
                             pin.icon:SetTexture(mmmTex)
                             pin.mmmInstance = instance
 
+                            local mmmHL = isRaid and HIGHLIGHT_MAP.RAID or HIGHLIGHT_MAP.DUNGEON
+                            if mmmHL and pin.mmmLastHL ~= mmmHL then
+                                pin:SetHighlightTexture(mmmHL)
+                                pin.mmmLastHL = mmmHL
+                            end
+
                             if not pin.mmmReskinned then
                                 pin.mmmReskinned = true
-                                pin.mmmTexture = mmmTex
-
-                                local mmmHL = instance.Type == IJLib.InstanceType.Raid and HIGHLIGHT_MAP.RAID or HIGHLIGHT_MAP.DUNGEON
-                                if mmmHL then
-                                    pin:SetHighlightTexture(mmmHL)
-                                end
 
                                 local origOnEnter = pin:GetScript("OnEnter")
                                 local origOnLeave = pin:GetScript("OnLeave")
