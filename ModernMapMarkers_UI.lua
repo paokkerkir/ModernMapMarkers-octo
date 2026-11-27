@@ -379,7 +379,7 @@ function MMM_GUI.InitializeWorldMapControls()
     UIDropDownMenu_SetText(L:GetLocalizedMarkerName("Find Marker"), findFrame)
     UIDropDownMenu_JustifyText("RIGHT", findFrame)
 
-    local stickyAll = false
+    local stickyAll = (ModernMapMarkersDB and ModernMapMarkersDB.findStickyAll == true)
     local UpdateFindPanel
 
     if findBtn then
@@ -428,7 +428,7 @@ function MMM_GUI.InitializeWorldMapControls()
     findPanel:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
     findPanel:Hide()
 
-    local activeContinent = 1
+    local activeContinent = stickyAll and 0 or 1
     local activeType      = "DUNGEON"
     local displayList     = {}
 
@@ -765,6 +765,8 @@ function MMM_GUI.InitializeWorldMapControls()
 
     btnKalimdor:SetScript("OnClick", function()
         stickyAll = false
+        if MMM.EnsureDBInitialized then MMM.EnsureDBInitialized() end
+        ModernMapMarkersDB.findStickyAll = false
         activeContinent = 1
         UpdateButtonStates()
         RefreshFindList()
@@ -772,6 +774,8 @@ function MMM_GUI.InitializeWorldMapControls()
 
     btnEK:SetScript("OnClick", function()
         stickyAll = false
+        if MMM.EnsureDBInitialized then MMM.EnsureDBInitialized() end
+        ModernMapMarkersDB.findStickyAll = false
         activeContinent = 2
         UpdateButtonStates()
         RefreshFindList()
@@ -779,6 +783,8 @@ function MMM_GUI.InitializeWorldMapControls()
 
     btnAll:SetScript("OnClick", function()
         stickyAll = true
+        if MMM.EnsureDBInitialized then MMM.EnsureDBInitialized() end
+        ModernMapMarkersDB.findStickyAll = true
         activeContinent = 0
         UpdateButtonStates()
         RefreshFindList()

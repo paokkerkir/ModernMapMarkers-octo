@@ -534,6 +534,9 @@ function MMM.EnsureDBInitialized()
     if ModernMapMarkersDB.playPingSound == nil then
         ModernMapMarkersDB.playPingSound = true
     end
+    if ModernMapMarkersDB.findStickyAll == nil then
+        ModernMapMarkersDB.findStickyAll = false
+    end
 end
 
 -- Hide markers from startIndex onwards
