@@ -154,6 +154,7 @@ end
 
 local function PositionDropdowns()
     local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
+    local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
     if not filterFrame then return end
     SyncDropdownLayer()
     filterFrame:ClearAllPoints()
