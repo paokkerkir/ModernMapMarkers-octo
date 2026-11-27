@@ -54,22 +54,108 @@ local function ResolveCompatState()
     if isCartographer then HookCartographerAlpha() end
 end
 
-local function PositionDropdowns()
+local STRATA_RANK = {
+    BACKGROUND        = 1,
+    LOW               = 2,
+    MEDIUM            = 3,
+    HIGH              = 4,
+    DIALOG            = 5,
+    FULLSCREEN        = 6,
+    FULLSCREEN_DIALOG = 7,
+    TOOLTIP           = 8,
+}
+
+local NEXT_STRATA = {
+    BACKGROUND        = "DIALOG",
+    LOW               = "DIALOG",
+    MEDIUM            = "DIALOG",
+    HIGH              = "DIALOG",
+    DIALOG            = "FULLSCREEN",
+    FULLSCREEN        = "FULLSCREEN_DIALOG",
+    FULLSCREEN_DIALOG = "FULLSCREEN_DIALOG",
+}
+
+local function ApplyDropdownLayer(strata, base, hidePanel)
     local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
     local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
     local findPanel   = getglobal("ModernMapMarkersFind_Panel")
-    if not filterFrame then return end
-    local strata = WorldMapFrame:GetFrameStrata()
-    filterFrame:SetFrameStrata(strata)
-    if filterFrame.backdrop then filterFrame.backdrop:SetFrameStrata(strata) end
+    local filterBtn   = getglobal("ModernMapMarkersFilter_BlizzButton")
+    local findBtn     = getglobal("ModernMapMarkersFind_BlizzButton")
+    if filterFrame then
+        filterFrame:SetFrameStrata(strata)
+        filterFrame:SetFrameLevel(base)
+        if filterFrame.backdrop then
+            filterFrame.backdrop:SetFrameStrata(strata)
+            filterFrame.backdrop:SetFrameLevel(math.max(base - 1, 0))
+        end
+    end
+    if filterBtn then filterBtn:SetFrameLevel(base + 2) end
     if findFrame then
         findFrame:SetFrameStrata(strata)
-        if findFrame.backdrop then findFrame.backdrop:SetFrameStrata(strata) end
+        findFrame:SetFrameLevel(base)
+        if findFrame.backdrop then
+            findFrame.backdrop:SetFrameStrata(strata)
+            findFrame.backdrop:SetFrameLevel(math.max(base - 1, 0))
+        end
     end
+    if findBtn then findBtn:SetFrameLevel(base + 2) end
     if findPanel then
+        if hidePanel and findPanel:IsVisible() then findPanel:Hide() end
         findPanel:SetFrameStrata(strata)
         if findPanel.backdrop then findPanel.backdrop:SetFrameStrata(strata) end
     end
+end
+
+local function IsAtlasBlocking(targetStrata)
+    local targetRank = STRATA_RANK[targetStrata] or 7
+    if AtlasFrame and AtlasFrame:IsVisible() then
+        local r = STRATA_RANK[AtlasFrame:GetFrameStrata()] or 0
+        if r <= targetRank then return true end
+    end
+    if AtlasCFMFrame and AtlasCFMFrame:IsVisible() then
+        local r = STRATA_RANK[AtlasCFMFrame:GetFrameStrata()] or 0
+        if r <= targetRank then return true end
+    end
+    return false
+end
+
+local function SyncDropdownLayer()
+    local mapStrata     = WorldMapFrame:GetFrameStrata()
+    local desiredStrata = NEXT_STRATA[mapStrata] or "FULLSCREEN_DIALOG"
+    if IsAtlasBlocking(desiredStrata) then
+        ApplyDropdownLayer(mapStrata, WorldMapFrame:GetFrameLevel() + 1, true)
+    else
+        ApplyDropdownLayer(desiredStrata, 5, false)
+    end
+end
+
+local atlasOverlapHooked = false
+local function HookAtlasOverlap()
+    if atlasOverlapHooked then return end
+    atlasOverlapHooked = true
+    local function hookFrame(f)
+        if not f then return end
+        local origOnShow = f:GetScript("OnShow")
+        f:SetScript("OnShow", function()
+            if origOnShow then origOnShow() end
+            SyncDropdownLayer()
+        end)
+        local origOnHide = f:GetScript("OnHide")
+        f:SetScript("OnHide", function()
+            if origOnHide then origOnHide() end
+            SyncDropdownLayer()
+        end)
+    end
+    hookFrame(AtlasFrame)
+    if AtlasCFMFrame and AtlasCFMFrame ~= AtlasFrame then
+        hookFrame(AtlasCFMFrame)
+    end
+end
+
+local function PositionDropdowns()
+    local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
+    if not filterFrame then return end
+    SyncDropdownLayer()
     filterFrame:ClearAllPoints()
     if pfLevelDrop then
         filterFrame:SetPoint("TOPRIGHT", pfLevelDrop, "BOTTOMRIGHT", 0, 0)
@@ -189,7 +275,7 @@ function MMM_GUI.InitializeWorldMapControls()
     -- Filter Dropdown
     local filterFrame = CreateFrame("Frame", "ModernMapMarkersFilter_Blizz", dropdownParent, "UIDropDownMenuTemplate")
 
-    filterFrame:SetFrameLevel(dropdownParent:GetFrameLevel() + 3)
+    filterFrame:SetFrameLevel(5)
 
     local filterBtn = getglobal(filterFrame:GetName().."Button")
     if filterBtn then
@@ -206,6 +292,27 @@ function MMM_GUI.InitializeWorldMapControls()
     PositionDropdowns()
 
     local function InitFilterMenu(level)
+        if DropDownList1 and filterFrame:GetFrameStrata() == "FULLSCREEN_DIALOG" then
+            local targetLevel = filterFrame:GetFrameLevel() + 20
+            if DropDownList1:GetFrameLevel() < targetLevel then
+                DropDownList1:SetFrameLevel(targetLevel)
+                local backdrop = getglobal("DropDownList1Backdrop")
+                if backdrop and backdrop:GetFrameLevel() < targetLevel then
+                    backdrop:SetFrameLevel(targetLevel)
+                end
+                local menuBackdrop = getglobal("DropDownList1MenuBackdrop")
+                if menuBackdrop and menuBackdrop:GetFrameLevel() < targetLevel then
+                    menuBackdrop:SetFrameLevel(targetLevel)
+                end
+                local maxButtons = UIDROPDOWNMENU_MAXBUTTONS or 32
+                for i = 1, maxButtons do
+                    local btn = getglobal("DropDownList1Button" .. i)
+                    if btn and btn:GetFrameLevel() <= targetLevel then
+                        btn:SetFrameLevel(targetLevel + 1)
+                    end
+                end
+            end
+        end
         if MMM and MMM.filters then
             local allOn = true
             for _, item in ipairs(filterOptions) do
@@ -289,7 +396,7 @@ function MMM_GUI.InitializeWorldMapControls()
 
     -- Find Marker Toggle (UIDropDownMenuTemplate to match filter style)
     local findFrame = CreateFrame("Frame", "ModernMapMarkersFind_Blizz", dropdownParent, "UIDropDownMenuTemplate")
-    findFrame:SetFrameLevel(filterFrame:GetFrameLevel())
+    findFrame:SetFrameLevel(5)
 
     local findBtn = getglobal(findFrame:GetName().."Button")
     if findBtn then findBtn:SetFrameLevel(findFrame:GetFrameLevel() + 2) end
@@ -336,7 +443,7 @@ function MMM_GUI.InitializeWorldMapControls()
     }
 
     local findPanel = CreateFrame("Frame", "ModernMapMarkersFind_Panel", WorldMapFrame)
-    findPanel:SetFrameLevel(filterFrame:GetFrameLevel() + 5)
+    findPanel:SetFrameLevel(10)
     findPanel:SetWidth(PANEL_WIDTH)
     findPanel:SetPoint("TOPRIGHT", findFrame, "BOTTOMRIGHT", -16, 0)
     findPanel:SetBackdrop({
@@ -706,7 +813,13 @@ function MMM_GUI.InitializeWorldMapControls()
         RefreshFindList()
     end
 
-    -- Close panel when the world map closes
+    -- Sync layering on show and close panel when the world map closes
+    local origOnShow = WorldMapFrame:GetScript("OnShow")
+    WorldMapFrame:SetScript("OnShow", function()
+        if origOnShow then origOnShow() end
+        SyncDropdownLayer()
+    end)
+
     local origOnHide = WorldMapFrame:GetScript("OnHide")
     WorldMapFrame:SetScript("OnHide", function()
         if origOnHide then origOnHide() end
@@ -837,6 +950,7 @@ initFrame:SetScript("OnEvent", function()
         this:UnregisterEvent("VARIABLES_LOADED")
     elseif event == "PLAYER_ENTERING_WORLD" then
         ResolveCompatState()
+        HookAtlasOverlap()
         PositionDropdowns()
         if isShaguMap or isPfUIMapOn then
             local deferFrame = CreateFrame("Frame")
