@@ -413,6 +413,7 @@ function MMM_GUI.InitializeWorldMapControls()
     UIDropDownMenu_JustifyText("RIGHT", findFrame)
 
     local stickyAll = false
+    local UpdateFindPanel
 
     if findBtn then
         findBtn:SetScript("OnClick", function()
@@ -545,6 +546,30 @@ function MMM_GUI.InitializeWorldMapControls()
     local scrollFrame = CreateFrame("ScrollFrame", "MMMFind_Scroll", findPanel, "FauxScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", findPanel, "TOPLEFT", PANEL_PADDING, -listAreaTop)
     scrollFrame:SetPoint("BOTTOMRIGHT", findPanel, "BOTTOMRIGHT", -PANEL_PADDING - 22, PANEL_PADDING)
+    local scrollBar = getglobal(scrollFrame:GetName() .. "ScrollBar")
+
+    local function OnRowEnter()
+        if this.nameRow then this.nameRow.hlTex:Show()
+        else this.hlTex:Show() end
+    end
+    local function OnRowLeave()
+        if this.nameRow then this.nameRow.hlTex:Hide()
+        else this.hlTex:Hide() end
+    end
+    local function OnRowClick()
+        if this.dataID then
+            ModernMapMarkers_FindMarker(this.dataID, this.dataName)
+        end
+    end
+    local function OnRowMouseWheel()
+        if scrollBar and scrollFrame:IsVisible() then
+            local minVal, maxVal = scrollBar:GetMinMaxValues()
+            local nextVal = scrollBar:GetValue() - (arg1 * ROW_HEIGHT)
+            if nextVal < minVal then nextVal = minVal end
+            if nextVal > maxVal then nextVal = maxVal end
+            scrollBar:SetValue(nextVal)
+        end
+    end
 
     -- Row buttons
     local rowButtons = {}
@@ -576,30 +601,11 @@ function MMM_GUI.InitializeWorldMapControls()
         lvlText:SetJustifyV("MIDDLE")
         row.lvlText = lvlText
 
-        row:SetScript("OnEnter", function()
-            if this.nameRow then this.nameRow.hlTex:Show()
-            else this.hlTex:Show() end
-        end)
-        row:SetScript("OnLeave", function()
-            if this.nameRow then this.nameRow.hlTex:Hide()
-            else this.hlTex:Hide() end
-        end)
-        row:SetScript("OnClick", function()
-            if this.dataID then
-                ModernMapMarkers_FindMarker(this.dataID, this.dataName)
-            end
-        end)
+        row:SetScript("OnEnter", OnRowEnter)
+        row:SetScript("OnLeave", OnRowLeave)
+        row:SetScript("OnClick", OnRowClick)
         row:EnableMouseWheel(true)
-        row:SetScript("OnMouseWheel", function()
-            local sb = getglobal(scrollFrame:GetName() .. "ScrollBar")
-            if sb and scrollFrame:IsVisible() then
-                local minVal, maxVal = sb:GetMinMaxValues()
-                local nextVal = sb:GetValue() - (arg1 * ROW_HEIGHT)
-                if nextVal < minVal then nextVal = minVal end
-                if nextVal > maxVal then nextVal = maxVal end
-                sb:SetValue(nextVal)
-            end
-        end)
+        row:SetScript("OnMouseWheel", OnRowMouseWheel)
 
         row:Hide()
         rowButtons[i] = row
@@ -778,8 +784,7 @@ function MMM_GUI.InitializeWorldMapControls()
         local total = table.getn(displayList)
         findPanel:SetHeight(listAreaTop + math.min(total, MAX_VISIBLE_ROWS) * ROW_HEIGHT + PANEL_PADDING + 4)
         FauxScrollFrame_SetOffset(scrollFrame, 0)
-        local sb = getglobal(scrollFrame:GetName() .. "ScrollBar")
-        if sb then sb:SetValue(0) end
+        if scrollBar then scrollBar:SetValue(0) end
         FauxScrollFrame_Update(scrollFrame, total, MAX_VISIBLE_ROWS, ROW_HEIGHT)
         DrawRows()
     end
@@ -812,7 +817,7 @@ function MMM_GUI.InitializeWorldMapControls()
         RefreshFindList()
     end)
 
-    function UpdateFindPanel(continent)
+    UpdateFindPanel = function(continent)
         UpdateButtonStates(continent)
         RefreshFindList()
     end
