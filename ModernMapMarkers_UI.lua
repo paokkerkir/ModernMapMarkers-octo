@@ -569,9 +569,9 @@ function MMM_GUI.InitializeWorldMapControls()
         row.nameText = nameText
 
         local lvlText = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        lvlText:SetPoint("TOPRIGHT", row, "TOPRIGHT", -4, 0)
-        lvlText:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -4, 0)
-        lvlText:SetJustifyH("RIGHT")
+        lvlText:SetPoint("TOPLEFT", row, "TOPRIGHT", -74, 0)
+        lvlText:SetPoint("BOTTOMLEFT", row, "BOTTOMRIGHT", -74, 0)
+        lvlText:SetJustifyH("LEFT")
         lvlText:SetJustifyV("MIDDLE")
         row.lvlText = lvlText
 
