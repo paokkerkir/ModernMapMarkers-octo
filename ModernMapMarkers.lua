@@ -341,6 +341,15 @@ function MMM:RefreshMarkers()
     -- Translate localized zone name to English key used in MarkerData
     local englishZoneName = L:GetEnglishZoneName(currentZoneName)
 
+    local width  = WorldMapDetailFrame:GetWidth()
+    local height = WorldMapDetailFrame:GetHeight()
+    if width == 0 or height == 0 then
+        self:HideAllMarkers()
+        lastContinent = nil
+        lastZone      = nil
+        return
+    end
+
     local zoneMarkers = MMM.ZoneMarkers[currentContinent] and MMM.ZoneMarkers[currentContinent][englishZoneName]
 
     local markerIndex = 0
@@ -380,13 +389,6 @@ function MMM:RefreshMarkers()
                 marker:SetHeight(size)
 
                 -- Position
-                local width  = WorldMapDetailFrame:GetWidth()
-                local height = WorldMapDetailFrame:GetHeight()
-                if width == 0 or height == 0 then
-                    lastContinent = nil
-                    lastZone      = nil
-                    return
-                end
                 marker:ClearAllPoints()
                 marker:SetPoint("CENTER", WorldMapDetailFrame, "TOPLEFT", data.x * width, -data.y * height)
 
