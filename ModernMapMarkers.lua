@@ -481,13 +481,7 @@ local function ShowPinTooltip(pin)
     if pin.description then
         if pin.markerType == "DUNGEON" or pin.markerType == "RAID" or pin.markerType == "WORLDBOSS" then
             local lvlLabel = L:GetLocalizedMarkerName("Level") or "Level"
-            local desc = pin.description
-            local _, _, _, maxStr = string.find(desc, "^(%d+)-(%d+)$")
-            local maxLevel = tonumber(maxStr or desc)
-            if maxLevel and MMM.GetLevelColor then
-                local r, g, b = MMM.GetLevelColor(maxLevel)
-                desc = string.format("|cff%02X%02X%02X%s|r", r * 255, g * 255, b * 255, desc)
-            end
+            local desc = MMM.FormatLevelRange and MMM.FormatLevelRange(pin.description) or pin.description
             WorldMapTooltip:AddLine(lvlLabel .. ": " .. desc, 1, 1, 1, 1)
         elseif pin.description == "Alliance" then
             WorldMapTooltip:AddLine(L:GetLocalizedMarkerName("Alliance"), 0.0, 0.47, 1.0, 1)

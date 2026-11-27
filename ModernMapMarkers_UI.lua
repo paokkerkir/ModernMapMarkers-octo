@@ -185,16 +185,21 @@ function MMM.GetLevelColor(level)
     end
 end
 
+function MMM.FormatLevelRange(description)
+    if not description or description == "" then return "" end
+    local _, _, _, maxStr = string.find(description, "^(%d+)-(%d+)$")
+    local maxLevel = tonumber(maxStr or description)
+    if maxLevel and MMM.GetLevelColor then
+        local r, g, b = MMM.GetLevelColor(maxLevel)
+        return string.format("|cff%02X%02X%02X%s|r", r * 255, g * 255, b * 255, description)
+    end
+    return description
+end
+
 local function MakeLvlString(description)
     if not description or description == "" then return "" end
     local lvlLabel = L:GetLocalizedMarkerName("Level") or "Level"
-    local _, _, _, maxStr = string.find(description, "^(%d+)-(%d+)$")
-    local maxLevel = tonumber(maxStr or description)
-    if maxLevel then
-        local r, g, b = MMM.GetLevelColor(maxLevel)
-        return string.format("%s |cff%02X%02X%02X%s|r", lvlLabel, r * 255, g * 255, b * 255, description)
-    end
-    return lvlLabel .. " " .. description
+    return lvlLabel .. " " .. MMM.FormatLevelRange(description)
 end
 
 function MMM_GUI.InitializeWorldMapControls()
