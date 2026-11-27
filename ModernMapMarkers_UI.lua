@@ -1,6 +1,210 @@
+MMM = MMM or {}
+
 local MMM_GUI = {}
-local isPfUI = IsAddOnLoaded("pfUI")
+local isPfUI = IsAddOnLoaded and IsAddOnLoaded("pfUI")
 local L = ModernMapMarkers_Locale
+
+local pfDrop
+local pfLevelDrop
+local isShaguMap
+local isPfUIMapOn
+local isCartographer
+
+local CART_OFFSET_X = 0
+local CART_OFFSET_Y = -10
+
+local cartAlphaHooked = false
+local function RestoreMMMAlpha()
+    local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
+    local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
+    local panel       = getglobal("ModernMapMarkersFind_Panel")
+    if filterFrame then filterFrame:SetAlpha(1) end
+    if findFrame   then findFrame:SetAlpha(1)   end
+    if panel       then panel:SetAlpha(1)       end
+    if MMM and MMM.RestorePinAlpha then MMM.RestorePinAlpha() end
+end
+
+local function HookCartographerAlpha()
+    if cartAlphaHooked then return end
+    if not Cartographer_LookNFeel then return end
+    cartAlphaHooked = true
+    if Cartographer_LookNFeel.SetAlpha then
+        local origSetAlpha = Cartographer_LookNFeel.SetAlpha
+        Cartographer_LookNFeel.SetAlpha = function(self, value)
+            origSetAlpha(self, value)
+            RestoreMMMAlpha()
+        end
+    end
+    if Cartographer_LookNFeel.SetOverlayAlpha then
+        local origSetOverlayAlpha = Cartographer_LookNFeel.SetOverlayAlpha
+        Cartographer_LookNFeel.SetOverlayAlpha = function(self, value)
+            origSetOverlayAlpha(self, value)
+            RestoreMMMAlpha()
+        end
+    end
+end
+
+local function ResolveCompatState()
+    pfDrop         = getglobal("pfQuestMapDropdown")
+    pfLevelDrop    = pfDrop and getglobal("pfQuestMapLevelDropdown")
+    local stKey    = ShaguTweaks and ShaguTweaks.T and ShaguTweaks.T["WorldMap Window"]
+    isShaguMap     = stKey and ShaguTweaks_config and ShaguTweaks_config[stKey] == 1
+    isPfUIMapOn    = isPfUI and not (pfUI_config and pfUI_config["disabled"] and pfUI_config["disabled"]["map"] == "1")
+    isCartographer = (not pfDrop) and (Cartographer ~= nil)
+    if isCartographer then HookCartographerAlpha() end
+end
+
+local STRATA_RANK = {
+    BACKGROUND        = 1,
+    LOW               = 2,
+    MEDIUM            = 3,
+    HIGH              = 4,
+    DIALOG            = 5,
+    FULLSCREEN        = 6,
+    FULLSCREEN_DIALOG = 7,
+    TOOLTIP           = 8,
+}
+
+local NEXT_STRATA = {
+    BACKGROUND        = "DIALOG",
+    LOW               = "DIALOG",
+    MEDIUM            = "DIALOG",
+    HIGH              = "DIALOG",
+    DIALOG            = "FULLSCREEN",
+    FULLSCREEN        = "FULLSCREEN_DIALOG",
+    FULLSCREEN_DIALOG = "FULLSCREEN_DIALOG",
+}
+
+local function ApplyDropdownLayer(strata, base, hidePanel)
+    local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
+    local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
+    local findPanel   = getglobal("ModernMapMarkersFind_Panel")
+    local filterBtn   = getglobal("ModernMapMarkersFilter_BlizzButton")
+    local findBtn     = getglobal("ModernMapMarkersFind_BlizzButton")
+    if filterFrame then
+        filterFrame:SetFrameStrata(strata)
+        filterFrame:SetFrameLevel(base)
+        if filterFrame.backdrop then
+            filterFrame.backdrop:SetFrameStrata(strata)
+            filterFrame.backdrop:SetFrameLevel(math.max(base - 1, 0))
+        end
+    end
+    if filterBtn then filterBtn:SetFrameLevel(base + 2) end
+    if findFrame then
+        findFrame:SetFrameStrata(strata)
+        findFrame:SetFrameLevel(base)
+        if findFrame.backdrop then
+            findFrame.backdrop:SetFrameStrata(strata)
+            findFrame.backdrop:SetFrameLevel(math.max(base - 1, 0))
+        end
+    end
+    if findBtn then findBtn:SetFrameLevel(base + 2) end
+    if findPanel then
+        if hidePanel and findPanel:IsVisible() then findPanel:Hide() end
+        findPanel:SetFrameStrata(strata)
+        findPanel:SetFrameLevel(base + 5)
+        if findPanel.backdrop then
+            findPanel.backdrop:SetFrameStrata(strata)
+            findPanel.backdrop:SetFrameLevel(math.max(base + 4, 0))
+        end
+    end
+end
+
+local function IsAtlasBlocking(targetStrata)
+    local targetRank = STRATA_RANK[targetStrata] or 7
+    if AtlasFrame and AtlasFrame:IsVisible() then
+        local r = STRATA_RANK[AtlasFrame:GetFrameStrata()] or 0
+        if r <= targetRank then return true end
+    end
+    if AtlasCFMFrame and AtlasCFMFrame:IsVisible() then
+        local r = STRATA_RANK[AtlasCFMFrame:GetFrameStrata()] or 0
+        if r <= targetRank then return true end
+    end
+    return false
+end
+
+local function SyncDropdownLayer()
+    local mapStrata     = WorldMapFrame:GetFrameStrata()
+    local desiredStrata = NEXT_STRATA[mapStrata] or "FULLSCREEN_DIALOG"
+    if IsAtlasBlocking(desiredStrata) then
+        ApplyDropdownLayer(mapStrata, WorldMapFrame:GetFrameLevel() + 1, true)
+    else
+        ApplyDropdownLayer(desiredStrata, 5, false)
+    end
+end
+
+local atlasOverlapHooked = false
+local function HookAtlasOverlap()
+    if atlasOverlapHooked then return end
+    atlasOverlapHooked = true
+    local function hookFrame(f)
+        if not f then return end
+        local origOnShow = f:GetScript("OnShow")
+        f:SetScript("OnShow", function()
+            if origOnShow then origOnShow() end
+            SyncDropdownLayer()
+        end)
+        local origOnHide = f:GetScript("OnHide")
+        f:SetScript("OnHide", function()
+            if origOnHide then origOnHide() end
+            SyncDropdownLayer()
+        end)
+    end
+    hookFrame(AtlasFrame)
+    if AtlasCFMFrame and AtlasCFMFrame ~= AtlasFrame then
+        hookFrame(AtlasCFMFrame)
+    end
+end
+
+local function PositionDropdowns()
+    local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
+    local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
+    if not filterFrame then return end
+    SyncDropdownLayer()
+    filterFrame:ClearAllPoints()
+    if pfLevelDrop then
+        filterFrame:SetPoint("TOPRIGHT", pfLevelDrop, "BOTTOMRIGHT", 0, 0)
+    elseif pfDrop then
+        filterFrame:SetPoint("TOPRIGHT", pfDrop, "BOTTOMRIGHT", 0, 0)
+    elseif isCartographer and WorldMapDetailFrame then
+        filterFrame:SetPoint("TOPRIGHT", WorldMapDetailFrame, "TOPRIGHT", CART_OFFSET_X, CART_OFFSET_Y)
+    elseif isPfUIMapOn or isShaguMap then
+        filterFrame:SetPoint("TOPRIGHT", WorldMapFrame, "TOPRIGHT", -8, -56)
+    else
+        filterFrame:SetPoint("TOPRIGHT", WorldMapFrame, "TOPRIGHT", -183, -79)
+    end
+    if findFrame then
+        findFrame:ClearAllPoints()
+        findFrame:SetPoint("TOPRIGHT", filterFrame, "BOTTOMRIGHT", 0, 0)
+    end
+end
+
+function MMM.GetLevelColor(level)
+    local delta = level - UnitLevel("player")
+    if     delta >= 5  then return 1,    0.1,  0.1
+    elseif delta >= 1  then return 1,    0.5,  0.25
+    elseif delta >= -4 then return 1,    1,    0
+    elseif delta >= -9 then return 0.25, 0.75, 0.25
+    else                    return 0.6,  0.6,  0.6
+    end
+end
+
+function MMM.FormatLevelRange(description)
+    if not description or description == "" then return "" end
+    local _, _, _, maxStr = string.find(description, "^(%d+)-(%d+)$")
+    local maxLevel = tonumber(maxStr or description)
+    if maxLevel and MMM.GetLevelColor then
+        local r, g, b = MMM.GetLevelColor(maxLevel)
+        return string.format("|cff%02X%02X%02X%s|r", r * 255, g * 255, b * 255, description)
+    end
+    return description
+end
+
+local function MakeLvlString(description)
+    if not description or description == "" then return "" end
+    local lvlLabel = L:GetLocalizedMarkerName("Level") or "Level"
+    return lvlLabel .. " " .. MMM.FormatLevelRange(description)
+end
 
 function MMM_GUI.InitializeWorldMapControls()
 
@@ -20,100 +224,90 @@ function MMM_GUI.InitializeWorldMapControls()
         { label = "  " .. L:GetLocalizedMarkerName("Horde"),      value = "Horde",     isCheck = true, checked = false, isRadio = true, group = "fac" },
     }
 
-    if ModernMapMarkersDB and ModernMapMarkersDB.filters then
-        local saved = ModernMapMarkersDB.filters
-        for _, item in ipairs(filterOptions) do
-            if item.isCheck and item.value and item.value ~= "ALL" then
-                if item.isRadio then
-                    if saved.FACTION ~= nil then
-                        item.checked = (saved.FACTION == item.value) or (item.value == "ALL" and saved.FACTION == "ALL")
-                    end
-                elseif saved[item.value] ~= nil then
-                    item.checked = saved[item.value]
-                end
-            end
-        end
-        -- Auto-check "All Markers" if all individual filters are on
-        local allOn = true
-        for _, item in ipairs(filterOptions) do
-            if item.isCheck and not item.isRadio and item.value ~= "ALL" then
-                if not item.checked then allOn = false; break end
-            end
-        end
-        filterOptions[1].checked = allOn
-    end
-
-    function ModernMapMarkers_SyncFilterUI(typeKey, state)
-        for _, item in ipairs(filterOptions) do
-            if item.isCheck and not item.isRadio and item.value == typeKey then
-                item.checked = state
-            end
-        end
-        local allOn = true
-        for _, item in ipairs(filterOptions) do
-            if item.isCheck and not item.isRadio and item.value ~= "ALL" then
-                if not item.checked then allOn = false; break end
-            end
-        end
-        filterOptions[1].checked = allOn
-    end
-    
     -- Determine Parent Frame (Standard or pfQuest)
     local dropdownParent = WorldMapFrame
 
-    -- Dynamic dropdown width based on longest label
-    local MIN_DROPDOWN_WIDTH = 120
-    local PADDING = 35
+    -- Dynamic dropdown width based on longest button label
+    local MIN_DROPDOWN_WIDTH = 110
+    local PADDING = 26
     local longestLabel = 0
 
-    -- Measure filter labels
-    for _, item in ipairs(filterOptions) do
-        local text = string.gsub(item.label, "^%s+", "")
-        local len = string.len(text)
-        if len > longestLabel then longestLabel = len end
-    end
-
-    -- Also measure button texts and find dropdown labels
     local buttonTexts = {
         L:GetLocalizedMarkerName("Filter Markers"),
         L:GetLocalizedMarkerName("Find Marker"),
-        L:GetLocalizedZoneName("Kalimdor"),
-        L:GetLocalizedZoneName("Eastern Kingdoms"),
-        L:GetLocalizedMarkerName("Dungeons"),
-        L:GetLocalizedMarkerName("Raids"),
     }
     for _, text in ipairs(buttonTexts) do
         local len = string.len(text)
         if len > longestLabel then longestLabel = len end
     end
 
-    -- Approximate width: ~7px per character + padding, with minimum
-    local dropdownWidth = math.max(MIN_DROPDOWN_WIDTH, longestLabel * 7 + PADDING)
+    local dropdownWidth = math.max(MIN_DROPDOWN_WIDTH, longestLabel * 6 + PADDING)
     local dropdownButtonWidth = dropdownWidth + 5
-    
-    if pfQuestMapDropdown then
-        dropdownParent = pfQuestMapDropdown:GetParent() or dropdownParent
-    end
 
     -- Filter Dropdown
     local filterFrame = CreateFrame("Frame", "ModernMapMarkersFilter_Blizz", dropdownParent, "UIDropDownMenuTemplate")
 
-    filterFrame:SetFrameStrata(dropdownParent:GetFrameStrata())
-    filterFrame:SetFrameLevel(dropdownParent:GetFrameLevel() + 10)
-    
+    filterFrame:SetFrameLevel(5)
+
     local filterBtn = getglobal(filterFrame:GetName().."Button")
-    if filterBtn then filterBtn:SetFrameLevel(filterFrame:GetFrameLevel() + 2) end
+    if filterBtn then
+        filterBtn:SetFrameLevel(filterFrame:GetFrameLevel() + 2)
+        filterBtn:SetScript("OnMouseDown", function()
+            local panel = getglobal("ModernMapMarkersFind_Panel")
+            if panel and panel:IsVisible() then
+                panel:Hide()
+            end
+        end)
+    end
 
     -- Positioning
-    if pfQuestMapDropdown then
-        filterFrame:SetPoint("TOPRIGHT", pfQuestMapDropdown, "BOTTOMRIGHT", 0, 0)
-    else
-        filterFrame:SetPoint("TOPRIGHT", WorldMapFrame, "TOPRIGHT", -10, -40)
-    end
-    
-    UIDropDownMenu_Initialize(filterFrame, function(level)
+    PositionDropdowns()
+
+    local menuRefreshFrame = CreateFrame("Frame")
+    menuRefreshFrame:Hide()
+
+    local function InitFilterMenu(level)
+        if DropDownList1 and filterFrame:GetFrameStrata() == "FULLSCREEN_DIALOG" then
+            local targetLevel = filterFrame:GetFrameLevel() + 20
+            if DropDownList1:GetFrameLevel() < targetLevel then
+                DropDownList1:SetFrameLevel(targetLevel)
+                local backdrop = getglobal("DropDownList1Backdrop")
+                if backdrop and backdrop:GetFrameLevel() < targetLevel then
+                    backdrop:SetFrameLevel(targetLevel)
+                end
+                local menuBackdrop = getglobal("DropDownList1MenuBackdrop")
+                if menuBackdrop and menuBackdrop:GetFrameLevel() < targetLevel then
+                    menuBackdrop:SetFrameLevel(targetLevel)
+                end
+                local maxButtons = UIDROPDOWNMENU_MAXBUTTONS or 32
+                for i = 1, maxButtons do
+                    local btn = getglobal("DropDownList1Button" .. i)
+                    if btn and btn:GetFrameLevel() <= targetLevel then
+                        btn:SetFrameLevel(targetLevel + 1)
+                    end
+                end
+            end
+        end
+        if MMM and MMM.filters then
+            local allOn = true
+            for _, item in ipairs(filterOptions) do
+                if item.isCheck and item.value then
+                    if item.isRadio then
+                        if MMM.filters.FACTION ~= nil then
+                            item.checked = (MMM.filters.FACTION == item.value)
+                        end
+                    elseif item.value ~= "ALL" then
+                        if MMM.filters[item.value] ~= nil then
+                            item.checked = (MMM.filters[item.value] == true)
+                        end
+                        if not item.checked then allOn = false end
+                    end
+                end
+            end
+            filterOptions[1].checked = allOn
+        end
         for _, itemRaw in ipairs(filterOptions) do
-            local item = itemRaw 
+            local item = itemRaw
 
             if item.isHeader then
                 local info = {}
@@ -129,8 +323,11 @@ function MMM_GUI.InitializeWorldMapControls()
                 info.keepShownOnClick = 1
                 info.func = function()
                     if item.isRadio then
-                        if item.checked then return end
-                            for _, v in ipairs(filterOptions) do
+                        if item.checked then
+                            menuRefreshFrame:Show()
+                            return
+                        end
+                        for _, v in ipairs(filterOptions) do
                             if v.isRadio and v.group == item.group then v.checked = false end
                         end
                         item.checked = true
@@ -155,12 +352,19 @@ function MMM_GUI.InitializeWorldMapControls()
                             filterOptions[1].checked = allOn
                         end
                     end
-                    ToggleDropDownMenu(1, nil, filterFrame) 
+                    if item.isRadio or item.value == "ALL" then
+                        menuRefreshFrame:Show()
+                    end
                 end
                 UIDropDownMenu_AddButton(info, level)
             end
         end
+    end
+    menuRefreshFrame:SetScript("OnUpdate", function()
+        this:Hide()
+        UIDropDownMenu_Initialize(filterFrame, InitFilterMenu)
     end)
+    UIDropDownMenu_Initialize(filterFrame, InitFilterMenu)
 
     UIDropDownMenu_SetWidth(dropdownWidth, filterFrame)
     UIDropDownMenu_SetButtonWidth(dropdownButtonWidth, filterFrame)
@@ -170,8 +374,7 @@ function MMM_GUI.InitializeWorldMapControls()
 
     -- Find Marker Toggle (UIDropDownMenuTemplate to match filter style)
     local findFrame = CreateFrame("Frame", "ModernMapMarkersFind_Blizz", dropdownParent, "UIDropDownMenuTemplate")
-    findFrame:SetFrameStrata(filterFrame:GetFrameStrata())
-    findFrame:SetFrameLevel(filterFrame:GetFrameLevel())
+    findFrame:SetFrameLevel(5)
 
     local findBtn = getglobal(findFrame:GetName().."Button")
     if findBtn then findBtn:SetFrameLevel(findFrame:GetFrameLevel() + 2) end
@@ -183,33 +386,43 @@ function MMM_GUI.InitializeWorldMapControls()
     UIDropDownMenu_SetText(L:GetLocalizedMarkerName("Find Marker"), findFrame)
     UIDropDownMenu_JustifyText("RIGHT", findFrame)
 
+    local stickyAll = (ModernMapMarkersDB and ModernMapMarkersDB.findStickyAll == true)
+    local UpdateFindPanel
+
     if findBtn then
         findBtn:SetScript("OnClick", function()
+            PlaySound("igMainMenuOptionCheckBoxOn")
+            if CloseDropDownMenus then CloseDropDownMenus() end
             local panel = getglobal("ModernMapMarkersFind_Panel")
             if panel then
                 if panel:IsVisible() then
                     panel:Hide()
                 else
-                    UpdateFindPanel()
+                    local c = GetCurrentMapContinent()
                     panel:Show()
+                    UpdateFindPanel((not stickyAll and (c == 1 or c == 2 or c == 0)) and c or nil)
                 end
             end
         end)
     end
 
-    UIDropDownMenu_Initialize(findFrame, function() end)
-
     -- Find Marker Panel
-    local PANEL_WIDTH = 220
-    local ROW_HEIGHT = 16
-    local MAX_VISIBLE_ROWS = 12
-    local BUTTON_HEIGHT = 20
-    local BUTTON_SPACING = 2
-    local PANEL_PADDING = 8
+    local PANEL_WIDTH      = 280
+    local ROW_HEIGHT       = 16
+    local MAX_VISIBLE_ROWS = 14
+    local BUTTON_HEIGHT    = 20
+    local BUTTON_SPACING   = 2
+    local PANEL_PADDING    = 8
+    local listAreaTop      = PANEL_PADDING + BUTTON_HEIGHT * 2 + BUTTON_SPACING * 2 + 4
+
+    local FIND_TYPES = {
+        { id = "DUNGEON",   label = L:GetLocalizedMarkerName("Dungeons") },
+        { id = "RAID",      label = L:GetLocalizedMarkerName("Raids") },
+        { id = "WORLDBOSS", label = L:GetLocalizedMarkerName("World Bosses") },
+    }
 
     local findPanel = CreateFrame("Frame", "ModernMapMarkersFind_Panel", WorldMapFrame)
-    findPanel:SetFrameStrata(filterFrame:GetFrameStrata())
-    findPanel:SetFrameLevel(filterFrame:GetFrameLevel() + 20)
+    findPanel:SetFrameLevel(10)
     findPanel:SetWidth(PANEL_WIDTH)
     findPanel:SetPoint("TOPRIGHT", findFrame, "BOTTOMRIGHT", -16, 0)
     findPanel:SetBackdrop({
@@ -222,41 +435,36 @@ function MMM_GUI.InitializeWorldMapControls()
     findPanel:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
     findPanel:Hide()
 
-    local activeContinent = 1
-    local activeType = "DUNGEON"
+    local activeContinent = stickyAll and 0 or 1
+    local activeType      = "DUNGEON"
+    local displayList     = {}
+
+    local UpdateButtonStates
+    local RefreshFindList
 
     local function CreateSelectorButton(name, parent, width, text)
         local btn = CreateFrame("Button", name, parent)
         btn:SetWidth(width)
         btn:SetHeight(BUTTON_HEIGHT)
-
         btn:SetBackdrop({
             bgFile   = "Interface\\DialogFrame\\UI-DialogBox-Background",
             edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
             tile = true, tileSize = 16, edgeSize = 12,
             insets = { left = 2, right = 2, top = 2, bottom = 2 },
         })
-
         local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("CENTER", 0, 0)
         label:SetText(text)
         btn.label = label
-
         btn:SetScript("OnEnter", function()
-            if not btn.isActive then
-                btn:SetBackdropColor(0.3, 0.3, 0.3, 1)
-            end
+            if not this.isActive then this:SetBackdropColor(0.3, 0.3, 0.3, 1) end
         end)
         btn:SetScript("OnLeave", function()
-            if not btn.isActive then
-                btn:SetBackdropColor(0.15, 0.15, 0.15, 1)
-            end
+            if not this.isActive then this:SetBackdropColor(0.15, 0.15, 0.15, 1) end
         end)
-
         btn.isActive = false
         btn:SetBackdropColor(0.15, 0.15, 0.15, 1)
         btn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-
         return btn
     end
 
@@ -274,32 +482,68 @@ function MMM_GUI.InitializeWorldMapControls()
     end
 
     -- Continent buttons
-    local halfWidth = (PANEL_WIDTH - PANEL_PADDING * 2 - BUTTON_SPACING) / 2
+    local kalWidth = 86
+    local ekWidth  = 124
+    local allWidth = PANEL_WIDTH - PANEL_PADDING * 2 - BUTTON_SPACING * 2 - kalWidth - ekWidth
 
-    local btnKalimdor = CreateSelectorButton("MMMFind_Kalimdor", findPanel, halfWidth, L:GetLocalizedZoneName("Kalimdor"))
+    local btnKalimdor = CreateSelectorButton("MMMFind_Kalimdor", findPanel, kalWidth, L:GetLocalizedZoneName("Kalimdor"))
     btnKalimdor:SetPoint("TOPLEFT", findPanel, "TOPLEFT", PANEL_PADDING, -PANEL_PADDING)
 
-    local btnEK = CreateSelectorButton("MMMFind_EK", findPanel, halfWidth, L:GetLocalizedZoneName("Eastern Kingdoms"))
+    local btnEK = CreateSelectorButton("MMMFind_EK", findPanel, ekWidth, L:GetLocalizedZoneName("Eastern Kingdoms"))
     btnEK:SetPoint("TOPLEFT", btnKalimdor, "TOPRIGHT", BUTTON_SPACING, 0)
 
+    local btnAll = CreateSelectorButton("MMMFind_All", findPanel, allWidth, L:GetLocalizedMarkerName("All"))
+    btnAll:SetPoint("TOPLEFT", btnEK, "TOPRIGHT", BUTTON_SPACING, 0)
+
     -- Type buttons
-    local thirdWidth = (PANEL_WIDTH - PANEL_PADDING * 2 - BUTTON_SPACING * 2) / 3
-
-    local btnDungeon = CreateSelectorButton("MMMFind_Dungeon", findPanel, thirdWidth, L:GetLocalizedMarkerName("Dungeons"))
-    btnDungeon:SetPoint("TOPLEFT", btnKalimdor, "BOTTOMLEFT", 0, -BUTTON_SPACING)
-
-    local btnRaid = CreateSelectorButton("MMMFind_Raid", findPanel, thirdWidth, L:GetLocalizedMarkerName("Raids"))
-    btnRaid:SetPoint("TOPLEFT", btnDungeon, "TOPRIGHT", BUTTON_SPACING, 0)
-
-    local btnWorldBoss = CreateSelectorButton("MMMFind_WorldBoss", findPanel, thirdWidth, L:GetLocalizedMarkerName("World Bosses"))
-    btnWorldBoss:SetPoint("TOPLEFT", btnRaid, "TOPRIGHT", BUTTON_SPACING, 0)
+    local findTypeButtons = {}
+    local numTypes  = table.getn(FIND_TYPES)
+    local typeWidth = (PANEL_WIDTH - PANEL_PADDING * 2 - BUTTON_SPACING * (numTypes - 1)) / numTypes
+    for i = 1, numTypes do
+        local tp  = FIND_TYPES[i]
+        local btn = CreateSelectorButton("MMMFind_Type" .. i, findPanel, typeWidth, tp.label)
+        if i == 1 then
+            btn:SetPoint("TOPLEFT", btnKalimdor, "BOTTOMLEFT", 0, -BUTTON_SPACING)
+        else
+            btn:SetPoint("TOPLEFT", findTypeButtons[i - 1], "TOPRIGHT", BUTTON_SPACING, 0)
+        end
+        local t = tp.id
+        btn:SetScript("OnClick", function()
+            activeType = t
+            UpdateButtonStates()
+            RefreshFindList()
+        end)
+        findTypeButtons[i] = btn
+    end
 
     -- Scroll frame for the instance list
-    local listAreaTop = PANEL_PADDING + BUTTON_HEIGHT * 2 + BUTTON_SPACING * 2 + 4
-
     local scrollFrame = CreateFrame("ScrollFrame", "MMMFind_Scroll", findPanel, "FauxScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", findPanel, "TOPLEFT", PANEL_PADDING, -listAreaTop)
     scrollFrame:SetPoint("BOTTOMRIGHT", findPanel, "BOTTOMRIGHT", -PANEL_PADDING - 22, PANEL_PADDING)
+    local scrollBar = getglobal(scrollFrame:GetName() .. "ScrollBar")
+
+    local function OnRowEnter()
+        if this.nameRow then this.nameRow.hlTex:Show()
+        else this.hlTex:Show() end
+    end
+    local function OnRowLeave()
+        if this.nameRow then this.nameRow.hlTex:Hide()
+        else this.hlTex:Hide() end
+    end
+    local function OnRowClick()
+        if this.dataID then
+            ModernMapMarkers_FindMarker(this.dataID, this.dataName)
+        end
+    end
+    local function OnRowMouseWheel()
+        if scrollBar and scrollFrame:IsVisible() then
+            local minVal, maxVal = scrollBar:GetMinMaxValues()
+            local nextVal = scrollBar:GetValue() - (arg1 * ROW_HEIGHT)
+            if nextVal < minVal then nextVal = minVal end
+            if nextVal > maxVal then nextVal = maxVal end
+            scrollBar:SetValue(nextVal)
+        end
+    end
 
     -- Row buttons
     local rowButtons = {}
@@ -309,42 +553,37 @@ function MMM_GUI.InitializeWorldMapControls()
         row:SetPoint("TOPLEFT", scrollFrame, "TOPLEFT", 0, -((i - 1) * ROW_HEIGHT))
         row:SetPoint("RIGHT", scrollFrame, "RIGHT", 0, 0)
 
-        local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-        highlight:SetAllPoints(row)
-        highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-        highlight:SetBlendMode("ADD")
-        highlight:SetAlpha(0.4)
+        local hlTex = row:CreateTexture(nil, "OVERLAY")
+        hlTex:SetAllPoints(row)
+        hlTex:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+        hlTex:SetBlendMode("ADD")
+        hlTex:SetAlpha(0.7)
+        hlTex:Hide()
+        row.hlTex = hlTex
 
         local nameText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         nameText:SetPoint("LEFT", row, "LEFT", 4, 0)
+        nameText:SetPoint("RIGHT", row, "RIGHT", -82, 0)
         nameText:SetJustifyH("LEFT")
+        nameText:SetJustifyV("MIDDLE")
         row.nameText = nameText
 
         local lvlText = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        lvlText:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-        lvlText:SetJustifyH("RIGHT")
+        lvlText:SetPoint("TOPLEFT", row, "TOPRIGHT", -74, 0)
+        lvlText:SetPoint("BOTTOMLEFT", row, "BOTTOMRIGHT", -74, 0)
+        lvlText:SetJustifyH("LEFT")
+        lvlText:SetJustifyV("MIDDLE")
         row.lvlText = lvlText
 
-        row:SetScript("OnEnter", function()
-            if row.dataID then
-                WorldMapTooltip:SetOwner(row, "ANCHOR_LEFT")
-                WorldMapTooltip:AddLine(row.nameText:GetText(), 1, 0.82, 0)
-                if row.lvlText:GetText() and row.lvlText:GetText() ~= "" then
-                    WorldMapTooltip:AddLine(row.lvlText:GetText(), 1, 1, 1)
-                end
-                WorldMapTooltip:Show()
-            end
-        end)
-        row:SetScript("OnLeave", function()
-            WorldMapTooltip:Hide()
-        end)
+        row:SetScript("OnEnter", OnRowEnter)
+        row:SetScript("OnLeave", OnRowLeave)
+        row:SetScript("OnClick", OnRowClick)
+        row:EnableMouseWheel(true)
+        row:SetScript("OnMouseWheel", OnRowMouseWheel)
 
         row:Hide()
         rowButtons[i] = row
     end
-
-    -- Current filtered + sorted list cache
-    local currentList = {}
 
     -- Sort function: level then name
     local function sortLvl(a, b)
@@ -356,111 +595,220 @@ function MMM_GUI.InitializeWorldMapControls()
         return alvl < blvl
     end
 
-    local function RefreshFindList()
+    local function BuildDisplayList()
         local flatData = ModernMapMarkers_GetFlatData()
-        currentList = {}
-
+        local sorted = {}
         for _, data in ipairs(flatData) do
-            if data.continent == activeContinent and data.type == activeType then
-                table.insert(currentList, data)
+            if (activeContinent == 0 or data.continent == activeContinent) and data.type == activeType then
+                table.insert(sorted, data)
             end
         end
-        table.sort(currentList, sortLvl)
+        table.sort(sorted, sortLvl)
 
-        local totalRows = table.getn(currentList)
-        local displayRows = math.min(totalRows, MAX_VISIBLE_ROWS)
-
-        local panelHeight = listAreaTop + (displayRows * ROW_HEIGHT) + PANEL_PADDING + 4
-        if totalRows > MAX_VISIBLE_ROWS then
-            panelHeight = listAreaTop + (MAX_VISIBLE_ROWS * ROW_HEIGHT) + PANEL_PADDING + 4
+        displayList = {}
+        for _, data in ipairs(sorted) do
+            local baseName = L:GetLocalizedMarkerName(data.name)
+            local comment
+            local nl = string.find(baseName, "\n")
+            if nl then
+                comment  = string.sub(baseName, nl + 1)
+                baseName = string.sub(baseName, 1, nl - 1)
+                local _, ce = string.find(comment, "^|c%x%x%x%x%x%x%x%x")
+                if ce then comment = string.sub(comment, ce + 1) end
+                local rs = string.find(comment, "|r$")
+                if rs then comment = string.sub(comment, 1, rs - 1) end
+            end
+            table.insert(displayList, {
+                kind       = "name",
+                text       = baseName,
+                lvlText    = MakeLvlString(data.description),
+                dataID     = data.id,
+                dataName   = data.name,
+                hasComment = (comment ~= nil),
+            })
+            if comment then
+                table.insert(displayList, { kind = "comment", text = comment })
+            end
         end
-        findPanel:SetHeight(panelHeight)
+    end
 
-        FauxScrollFrame_Update(scrollFrame, totalRows, MAX_VISIBLE_ROWS, ROW_HEIGHT)
+    local function DrawRows()
+        for i = 1, MAX_VISIBLE_ROWS do
+            rowButtons[i].hlTex:Hide()
+        end
 
         local offset = FauxScrollFrame_GetOffset(scrollFrame)
-        local lvlLabel = L:GetLocalizedMarkerName("Level") or "Level"
-
+        local total  = table.getn(displayList)
         for i = 1, MAX_VISIBLE_ROWS do
             local row = rowButtons[i]
-            local dataIndex = offset + i
-
-            if dataIndex <= totalRows then
-                local data = currentList[dataIndex]
-                local localizedName = L:GetLocalizedMarkerName(data.name)
-                row.nameText:SetText(localizedName)
-
-                if data.description then
-                    row.lvlText:SetText(lvlLabel .. " " .. data.description)
+            local idx = offset + i
+            if idx <= total then
+                local slot = displayList[idx]
+                if slot.kind == "name" then
+                    row.nameRow = nil
+                    row.nameText:ClearAllPoints()
+                    row.nameText:SetPoint("LEFT", row, "LEFT", 4, 0)
+                    row.nameText:SetPoint("RIGHT", row, "RIGHT", -82, 0)
+                    row.nameText:SetTextColor(1, 1, 1)
+                    row.nameText:SetText(slot.text)
+                    row.lvlText:SetText(slot.lvlText or "")
+                    row.dataID   = slot.dataID
+                    row.dataName = slot.dataName
+                    if slot.hasComment and i < MAX_VISIBLE_ROWS then
+                        row.hlTex:ClearAllPoints()
+                        row.hlTex:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+                        row.hlTex:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, -ROW_HEIGHT)
+                    else
+                        row.hlTex:ClearAllPoints()
+                        row.hlTex:SetAllPoints(row)
+                    end
                 else
+                    local parent = displayList[idx - 1]
+                    row.nameRow = rowButtons[i - 1]
+                    row.nameText:ClearAllPoints()
+                    row.nameText:SetPoint("LEFT", row, "LEFT", 4, 0)
+                    row.nameText:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+                    row.nameText:SetTextColor(0.55, 0.55, 0.55)
+                    row.nameText:SetText(slot.text)
                     row.lvlText:SetText("")
+                    row.dataID   = parent and parent.dataID or nil
+                    row.dataName = parent and parent.dataName or nil
+                    row.hlTex:ClearAllPoints()
+                    row.hlTex:SetAllPoints(row)
                 end
-
-                row.nameText:SetWidth(row:GetWidth() - row.lvlText:GetStringWidth() - 16)
-
-                row.dataID = data.id
-                row:SetScript("OnClick", function()
-                    ModernMapMarkers_FindMarker(data.id)
-                end)
                 row:Show()
             else
+                row.nameRow  = nil
+                row.dataID   = nil
+                row.dataName = nil
                 row.nameText:SetText("")
+                row.nameText:SetTextColor(1, 1, 1)
                 row.lvlText:SetText("")
-                row.dataID = nil
+                row.hlTex:ClearAllPoints()
+                row.hlTex:SetAllPoints(row)
                 row:Hide()
             end
         end
     end
 
-    scrollFrame:SetScript("OnVerticalScroll", function()
-        FauxScrollFrame_OnVerticalScroll(ROW_HEIGHT, RefreshFindList)
-    end)
+    UpdateButtonStates = function(continent)
+        if continent ~= nil then activeContinent = continent end
+        SetButtonActive(btnKalimdor, activeContinent == 1)
+        SetButtonActive(btnEK,       activeContinent == 2)
+        SetButtonActive(btnAll,      activeContinent == 0)
 
-    -- Button click handlers
-    local function UpdateButtonStates()
-        SetButtonActive(btnKalimdor,  activeContinent == 1)
-        SetButtonActive(btnEK,        activeContinent == 2)
-        SetButtonActive(btnDungeon,   activeType == "DUNGEON")
-        SetButtonActive(btnRaid,      activeType == "RAID")
-        SetButtonActive(btnWorldBoss, activeType == "WORLDBOSS")
+        local flatData    = ModernMapMarkers_GetFlatData()
+        local typeVisible = {}
+        for i = 1, numTypes do typeVisible[i] = false end
+        for _, d in ipairs(flatData) do
+            if activeContinent == 0 or d.continent == activeContinent then
+                for i = 1, numTypes do
+                    if FIND_TYPES[i].id == d.type then typeVisible[i] = true end
+                end
+            end
+        end
+
+        local valid = false
+        for i = 1, numTypes do
+            if FIND_TYPES[i].id == activeType and typeVisible[i] then
+                valid = true
+                break
+            end
+        end
+        if not valid then
+            for i = 1, numTypes do
+                if typeVisible[i] then
+                    activeType = FIND_TYPES[i].id
+                    break
+                end
+            end
+        end
+
+        local visible = {}
+        for i = 1, numTypes do
+            if typeVisible[i] then
+                table.insert(visible, findTypeButtons[i])
+                findTypeButtons[i]:Show()
+            else
+                findTypeButtons[i]:Hide()
+            end
+        end
+
+        local n = table.getn(visible)
+        if n > 0 then
+            local btnW = (PANEL_WIDTH - PANEL_PADDING * 2 - BUTTON_SPACING * (n - 1)) / n
+            for j = 1, n do
+                visible[j]:SetWidth(btnW)
+                visible[j]:ClearAllPoints()
+                if j == 1 then
+                    visible[j]:SetPoint("TOPLEFT", btnKalimdor, "BOTTOMLEFT", 0, -BUTTON_SPACING)
+                else
+                    visible[j]:SetPoint("TOPLEFT", visible[j - 1], "TOPRIGHT", BUTTON_SPACING, 0)
+                end
+            end
+        end
+
+        for i = 1, numTypes do
+            SetButtonActive(findTypeButtons[i], FIND_TYPES[i].id == activeType)
+        end
     end
 
+    RefreshFindList = function()
+        BuildDisplayList()
+        local total = table.getn(displayList)
+        findPanel:SetHeight(listAreaTop + math.min(total, MAX_VISIBLE_ROWS) * ROW_HEIGHT + PANEL_PADDING + 4)
+        FauxScrollFrame_SetOffset(scrollFrame, 0)
+        if scrollBar then scrollBar:SetValue(0) end
+        FauxScrollFrame_Update(scrollFrame, total, MAX_VISIBLE_ROWS, ROW_HEIGHT)
+        DrawRows()
+    end
+
+    scrollFrame:SetScript("OnVerticalScroll", function()
+        FauxScrollFrame_OnVerticalScroll(ROW_HEIGHT, function()
+            FauxScrollFrame_Update(scrollFrame, table.getn(displayList), MAX_VISIBLE_ROWS, ROW_HEIGHT)
+            DrawRows()
+        end)
+    end)
+
     btnKalimdor:SetScript("OnClick", function()
+        stickyAll = false
+        if MMM.EnsureDBInitialized then MMM.EnsureDBInitialized() end
+        ModernMapMarkersDB.findStickyAll = false
         activeContinent = 1
         UpdateButtonStates()
         RefreshFindList()
     end)
 
     btnEK:SetScript("OnClick", function()
+        stickyAll = false
+        if MMM.EnsureDBInitialized then MMM.EnsureDBInitialized() end
+        ModernMapMarkersDB.findStickyAll = false
         activeContinent = 2
         UpdateButtonStates()
         RefreshFindList()
     end)
 
-    btnDungeon:SetScript("OnClick", function()
-        activeType = "DUNGEON"
+    btnAll:SetScript("OnClick", function()
+        stickyAll = true
+        if MMM.EnsureDBInitialized then MMM.EnsureDBInitialized() end
+        ModernMapMarkersDB.findStickyAll = true
+        activeContinent = 0
         UpdateButtonStates()
         RefreshFindList()
     end)
 
-    btnRaid:SetScript("OnClick", function()
-        activeType = "RAID"
-        UpdateButtonStates()
-        RefreshFindList()
-    end)
-
-    btnWorldBoss:SetScript("OnClick", function()
-        activeType = "WORLDBOSS"
-        UpdateButtonStates()
-        RefreshFindList()
-    end)
-
-    function UpdateFindPanel()
-        UpdateButtonStates()
+    UpdateFindPanel = function(continent)
+        UpdateButtonStates(continent)
         RefreshFindList()
     end
 
-    -- Close panel when the world map closes
+    -- Sync layering on show and close panel when the world map closes
+    local origOnShow = WorldMapFrame:GetScript("OnShow")
+    WorldMapFrame:SetScript("OnShow", function()
+        if origOnShow then origOnShow() end
+        SyncDropdownLayer()
+    end)
+
     local origOnHide = WorldMapFrame:GetScript("OnHide")
     WorldMapFrame:SetScript("OnHide", function()
         if origOnHide then origOnHide() end
@@ -475,15 +823,20 @@ function MMM_GUI.InitializeWorldMapControls()
             pfUI.api.SkinDropDown(filterFrame)
             pfUI.api.SkinDropDown(findFrame)
         end
+        if pfUI.api.CreateBackdrop then
+            pfUI.api.CreateBackdrop(findPanel)
+            findPanel:Hide()
+        end
         if pfUI.api.SkinButton then
             pfUI.api.SkinButton(btnKalimdor)
             pfUI.api.SkinButton(btnEK)
-            pfUI.api.SkinButton(btnDungeon)
-            pfUI.api.SkinButton(btnRaid)
-            pfUI.api.SkinButton(btnWorldBoss)
+            pfUI.api.SkinButton(btnAll)
+            for i = 1, numTypes do
+                pfUI.api.SkinButton(findTypeButtons[i])
+            end
         end
     end
-    
+
     -- Apply saved visibility state
     if ModernMapMarkersDB and ModernMapMarkersDB.hideDropdowns then
         filterFrame:Hide()
@@ -492,56 +845,102 @@ function MMM_GUI.InitializeWorldMapControls()
 
 end
 
--- Debug Utilities
-SLASH_MMMDEBUG1 = "/mmmzones"
-SlashCmdList["MMMDEBUG"] = function()
-    if not DEFAULT_CHAT_FRAME then return end
-    for contID = 1, 2 do
-        local contName = (contID == 1) and "Kalimdor" or "Eastern Kingdoms"
-        DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModernMapMarkers:|r Zone Indexes for " .. contName .. ":")
-        local zones = { GetMapZones(contID) }
-        for i, zoneName in ipairs(zones) do
-            DEFAULT_CHAT_FRAME:AddMessage("  " .. i .. ": " .. zoneName)
-        end
-    end
-end
-
--- Slash command to toggle dropdown visibility
+-- Slash commands
 SLASH_MMM1 = "/mmm"
-SlashCmdList["MMM"] = function()
-    if type(ModernMapMarkersDB) ~= "table" then
-        ModernMapMarkersDB = { filters = {} }
-    end
-    ModernMapMarkersDB.hideDropdowns = not ModernMapMarkersDB.hideDropdowns
-    
-    local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
-    local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
-    local findPanel   = getglobal("ModernMapMarkersFind_Panel")
-    
-    if filterFrame and findFrame then
-        if ModernMapMarkersDB.hideDropdowns then
-            filterFrame:Hide()
-            findFrame:Hide()
-            if findPanel then findPanel:Hide() end
-            if DEFAULT_CHAT_FRAME then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: " .. L:GetLocalizedMarkerName("Dropdown menus hidden."))
-            end
-        else
-            filterFrame:Show()
-            findFrame:Show()
-            if DEFAULT_CHAT_FRAME then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: " .. L:GetLocalizedMarkerName("Dropdown menus shown."))
+SlashCmdList["MMM"] = function(msg)
+    if MMM.EnsureDBInitialized then MMM.EnsureDBInitialized() end
+
+    local cmd = string.lower(string.gsub(msg or "", "^%s*(.-)%s*$", "%1"))
+
+    if cmd == "" then
+        if DEFAULT_CHAT_FRAME then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers commands:")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cFFFFD700/mmm menu|r - Toggle map dropdown menus")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cFFFFD700/mmm hints|r - Toggle transport click hints")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cFFFFD700/mmm sound|r - Toggle map ping sound")
+            DEFAULT_CHAT_FRAME:AddMessage("  |cFFFFD700/mmm zones|r - Print zone indexes")
+        end
+        return
+    elseif cmd == "menu" then
+        ModernMapMarkersDB.hideDropdowns = not ModernMapMarkersDB.hideDropdowns
+
+        local filterFrame = getglobal("ModernMapMarkersFilter_Blizz")
+        local findFrame   = getglobal("ModernMapMarkersFind_Blizz")
+        local findPanel   = getglobal("ModernMapMarkersFind_Panel")
+
+        if filterFrame and findFrame then
+            if ModernMapMarkersDB.hideDropdowns then
+                filterFrame:Hide()
+                findFrame:Hide()
+                if findPanel then findPanel:Hide() end
+                if DEFAULT_CHAT_FRAME then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: " .. L:GetLocalizedMarkerName("Dropdown menus hidden."))
+                end
+            else
+                filterFrame:Show()
+                findFrame:Show()
+                if DEFAULT_CHAT_FRAME then
+                    DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: " .. L:GetLocalizedMarkerName("Dropdown menus shown."))
+                end
             end
         end
+        return
+    elseif cmd == "hints" then
+        ModernMapMarkersDB.showTransportHints = not ModernMapMarkersDB.showTransportHints
+        if MMM.RefreshVisibleTooltip then MMM.RefreshVisibleTooltip() end
+        if DEFAULT_CHAT_FRAME then
+            local stateText = ModernMapMarkersDB.showTransportHints and "shown." or "hidden."
+            DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: Transport hints " .. stateText)
+        end
+        return
+    elseif cmd == "sound" then
+        ModernMapMarkersDB.playPingSound = not ModernMapMarkersDB.playPingSound
+        if DEFAULT_CHAT_FRAME then
+            local stateText = ModernMapMarkersDB.playPingSound and "enabled." or "disabled."
+            DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: Ping sound " .. stateText)
+        end
+        return
+    elseif cmd == "zones" then
+        if not DEFAULT_CHAT_FRAME then return end
+        for contID = 1, 2 do
+            local contName = (contID == 1) and "Kalimdor" or "Eastern Kingdoms"
+            DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModernMapMarkers:|r Zone Indexes for " .. contName .. ":")
+            local zones = { GetMapZones(contID) }
+            for i, zoneName in ipairs(zones) do
+                DEFAULT_CHAT_FRAME:AddMessage("  " .. i .. ": " .. zoneName)
+            end
+        end
+        return
+    else
+        if DEFAULT_CHAT_FRAME then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff7fff7fModern|rMapMarkers: Unknown command. Type |cFFFFD700/mmm|r for commands.")
+        end
+        return
     end
 end
 
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("VARIABLES_LOADED")
+initFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 initFrame:SetScript("OnEvent", function()
-    L:Initialize()
-    MMM_GUI.InitializeWorldMapControls()
-    this:UnregisterEvent("VARIABLES_LOADED")
+    if event == "VARIABLES_LOADED" then
+        L:Initialize()
+        ResolveCompatState()
+        MMM_GUI.InitializeWorldMapControls()
+        this:UnregisterEvent("VARIABLES_LOADED")
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        ResolveCompatState()
+        HookAtlasOverlap()
+        PositionDropdowns()
+        if isShaguMap or isPfUIMapOn then
+            local deferFrame = CreateFrame("Frame")
+            deferFrame:SetScript("OnUpdate", function()
+                this:SetScript("OnUpdate", nil)
+                PositionDropdowns()
+            end)
+        end
+        this:UnregisterEvent("PLAYER_ENTERING_WORLD")
+    end
 end)
 
 ModernMapMarkers_GUI = MMM_GUI

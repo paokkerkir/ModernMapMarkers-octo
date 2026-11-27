@@ -24,7 +24,7 @@ ModernMapMarkers_Points = {
         ["Desolace"] = {
             { x=0.29,  y=0.629, name="Maraudon",              type="dungeon",   info="46-55", atlasID="Maraudon",  dest=nil },
             { x=0.82,  y=0.80,  name="Concavius",             type="worldboss", info="60",    atlasID="Concavius", dest=nil },
-            { x=0.205, y=0.75,  name="Boat to Moonhoof Village", type="boat",   info="Horde", atlasID=nil,         dest=nil },
+            { x=0.205, y=0.75,  name="Boat to Moonhoof Village", type="boat",   info="Horde", atlasID=nil,         dest={1, "Moonwhisper Coast"} },
         },
         ["Durotar"] = {
             { x=0.512, y=0.135, name="Zeppelins to UC & Grom'Gol", type="zepp", info="Horde", atlasID=nil, dest={2, "Tirisfal Glades"}, dest2={2, "Stranglethorn Vale"} },
@@ -40,8 +40,8 @@ ModernMapMarkers_Points = {
             { x=0.624, y=0.249, name="Dire Maul - North",                   type="dungeon",   info="57-60",    atlasID="DireMaulNorth", dest=nil },
             { x=0.604, y=0.311, name="Dire Maul - West",                    type="dungeon",   info="57-60",    atlasID="DireMaulWest",  dest=nil },
             { x=0.512, y=0.108, name="Taerar",                               type="worldboss", info="60",       atlasID="FourDragons",   dest=nil },
-            { x=0.311, y=0.395, name="Boat to Forgotten Coast",             type="boat",      info="Alliance", atlasID=nil,             dest=nil },
-            { x=0.431, y=0.428, name="Boat to Sardor Isle",                 type="boat",      info="Alliance", atlasID=nil,             dest=nil },
+            { x=0.311, y=0.395, name="Boat to Forgotten Coast",             type="boat",      info="Alliance", atlasID=nil,             dest={1, "Feralas"} },
+            { x=0.431, y=0.428, name="Boat to Sardor Isle",                 type="boat",      info="Alliance", atlasID=nil,             dest={1, "Feralas"} },
         },
         ["Hyjal"] = {
             { x=0.207, y=0.592, name="Emerald Sanctum", type="raid",      info="60", atlasID="EmeraldSanctum", dest=nil },
@@ -49,13 +49,13 @@ ModernMapMarkers_Points = {
         },
         ["Moonwhisper Coast"] = {
             { x=0.506, y=0.959, name="Timbermaw Hold",          type="raid", info="60",    atlasID="TimbermawHold", dest=nil },
-            { x=0.71,  y=0.38,  name="Boat to Shadowprey Village", type="boat", info="Horde", atlasID=nil,          dest=nil },
+            { x=0.71,  y=0.38,  name="Boat to Shadowprey Village", type="boat", info="Horde", atlasID=nil,          dest={1, "Desolace"} },
         },
         ["Orgrimmar"] = {
             { x=0.53, y=0.486, name="Ragefire Chasm", type="dungeon", info="13-18", atlasID="RagefireChasm", dest=nil },
         },
         ["Silithus"] = {
-            { x=0.296, y=0.960, name="Ruins of Ahn'Qiraj",  type="raid", info="60", atlasID="TheRuinsofAhnQiraj",  dest=nil },
+            { x=0.300, y=0.960, name="Ruins of Ahn'Qiraj",  type="raid", info="60", atlasID="TheRuinsofAhnQiraj",  dest=nil },
             { x=0.282, y=0.956, name="Temple of Ahn'Qiraj", type="raid", info="60", atlasID="TheTempleofAhnQiraj", dest=nil },
         },
         ["Tanaris"] = {
@@ -157,7 +157,7 @@ ModernMapMarkers_Points = {
         },
         ["The Hinterlands"] = {
             { x=0.632, y=0.217, name="Emeriss",                               type="worldboss", info="60",    atlasID="FourDragons", dest=nil },
-            { x=0.812, y=0.794, name="Boat to Sparkwater Port",             type="boat",      info="Horde", atlasID=nil,           dest=nil },
+            { x=0.812, y=0.794, name="Boat to Sparkwater Port",             type="boat",      info="Horde", atlasID=nil,           dest={1, "Durotar"} },
         },
         ["Tirisfal Glades"] = {
             { x=0.869, y=0.323, name="Scarlet Monastery - Armory",        type="dungeon", info="32-42", atlasID="ScarletMonasteryArmory",    dest=nil                       },
