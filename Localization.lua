@@ -27,6 +27,8 @@ function ModernMapMarkers_Locale:RegisterMarkers(locale, tbl)
 end
 
 function ModernMapMarkers_Locale:Initialize()
+    if self.initialized then return end
+    self.initialized = true
     detectedLocale = GetLocale() or "enUS"
 
     local data = LocaleData[detectedLocale]

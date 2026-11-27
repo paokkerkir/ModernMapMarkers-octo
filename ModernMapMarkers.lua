@@ -530,10 +530,7 @@ function MMM.RefreshVisibleTooltip()
     end
 end
 
-local dbInitialized = false
 function MMM.EnsureDBInitialized()
-    if dbInitialized then return end
-    dbInitialized = true
     if type(ModernMapMarkersDB) ~= "table" then
         ModernMapMarkersDB = {}
     end
@@ -1055,9 +1052,6 @@ function ModernMapMarkers_FindMarker(dataIndex, matchName)
 
     if not MMM.filters[data.type] then
         MMM.filters[data.type] = true
-        if ModernMapMarkers_SyncFilterUI then
-            ModernMapMarkers_SyncFilterUI(data.type, true)
-        end
     end
 
     MMM.pendingHighlight = matchName or data.name

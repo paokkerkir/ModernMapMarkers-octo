@@ -215,44 +215,6 @@ function MMM_GUI.InitializeWorldMapControls()
         { label = "  " .. L:GetLocalizedMarkerName("Horde"),      value = "Horde",     isCheck = true, checked = false, isRadio = true, group = "fac" },
     }
 
-    if ModernMapMarkersDB and ModernMapMarkersDB.filters then
-        local saved = ModernMapMarkersDB.filters
-        for _, item in ipairs(filterOptions) do
-            if item.isCheck and item.value then
-                if item.isRadio then
-                    if saved.FACTION ~= nil then
-                        item.checked = (saved.FACTION == item.value)
-                    end
-                elseif item.value ~= "ALL" and saved[item.value] ~= nil then
-                    item.checked = saved[item.value]
-                end
-            end
-        end
-        -- Auto-check "All Markers" if all individual filters are on
-        local allOn = true
-        for _, item in ipairs(filterOptions) do
-            if item.isCheck and not item.isRadio and item.value ~= "ALL" then
-                if not item.checked then allOn = false; break end
-            end
-        end
-        filterOptions[1].checked = allOn
-    end
-
-    function ModernMapMarkers_SyncFilterUI(typeKey, state)
-        for _, item in ipairs(filterOptions) do
-            if item.isCheck and not item.isRadio and item.value == typeKey then
-                item.checked = state
-            end
-        end
-        local allOn = true
-        for _, item in ipairs(filterOptions) do
-            if item.isCheck and not item.isRadio and item.value ~= "ALL" then
-                if not item.checked then allOn = false; break end
-            end
-        end
-        filterOptions[1].checked = allOn
-    end
-
     -- Determine Parent Frame (Standard or pfQuest)
     local dropdownParent = WorldMapFrame
 
@@ -869,15 +831,6 @@ end
 SLASH_MMM1 = "/mmm"
 SlashCmdList["MMM"] = function(msg)
     if MMM.EnsureDBInitialized then MMM.EnsureDBInitialized() end
-    if type(ModernMapMarkersDB) ~= "table" then
-        ModernMapMarkersDB = { filters = {} }
-    end
-    if ModernMapMarkersDB.showTransportHints == nil then
-        ModernMapMarkersDB.showTransportHints = true
-    end
-    if ModernMapMarkersDB.playPingSound == nil then
-        ModernMapMarkersDB.playPingSound = true
-    end
 
     local cmd = string.lower(string.gsub(msg or "", "^%s*(.-)%s*$", "%1"))
 
