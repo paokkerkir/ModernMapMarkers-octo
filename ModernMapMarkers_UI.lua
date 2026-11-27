@@ -319,8 +319,11 @@ function MMM_GUI.InitializeWorldMapControls()
                 info.keepShownOnClick = 1
                 info.func = function()
                     if item.isRadio then
-                        if item.checked then return end
-                            for _, v in ipairs(filterOptions) do
+                        if item.checked then
+                            menuRefreshFrame:Show()
+                            return
+                        end
+                        for _, v in ipairs(filterOptions) do
                             if v.isRadio and v.group == item.group then v.checked = false end
                         end
                         item.checked = true
