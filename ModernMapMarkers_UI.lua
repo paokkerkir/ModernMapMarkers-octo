@@ -682,7 +682,6 @@ function MMM_GUI.InitializeWorldMapControls()
                         row.hlTex:ClearAllPoints()
                         row.hlTex:SetAllPoints(row)
                     end
-                    row.hlTex:Hide()
                 else
                     local parent = displayList[idx - 1]
                     row.nameRow = rowButtons[i - 1]
@@ -694,6 +693,8 @@ function MMM_GUI.InitializeWorldMapControls()
                     row.lvlText:SetText("")
                     row.dataID   = parent and parent.dataID or nil
                     row.dataName = parent and parent.dataName or nil
+                    row.hlTex:ClearAllPoints()
+                    row.hlTex:SetAllPoints(row)
                 end
                 row:Show()
             else
@@ -705,7 +706,6 @@ function MMM_GUI.InitializeWorldMapControls()
                 row.lvlText:SetText("")
                 row.hlTex:ClearAllPoints()
                 row.hlTex:SetAllPoints(row)
-                row.hlTex:Hide()
                 row:Hide()
             end
         end
