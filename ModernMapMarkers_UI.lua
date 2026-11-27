@@ -291,6 +291,9 @@ function MMM_GUI.InitializeWorldMapControls()
     -- Positioning
     PositionDropdowns()
 
+    local menuRefreshFrame = CreateFrame("Frame")
+    menuRefreshFrame:Hide()
+
     local function InitFilterMenu(level)
         if DropDownList1 and filterFrame:GetFrameStrata() == "FULLSCREEN_DIALOG" then
             local targetLevel = filterFrame:GetFrameLevel() + 20
@@ -375,17 +378,17 @@ function MMM_GUI.InitializeWorldMapControls()
                         end
                     end
                     if item.isRadio or item.value == "ALL" then
-                        local ticker = CreateFrame("Frame")
-                        ticker:SetScript("OnUpdate", function()
-                            this:SetScript("OnUpdate", nil)
-                            UIDropDownMenu_Initialize(filterFrame, InitFilterMenu)
-                        end)
+                        menuRefreshFrame:Show()
                     end
                 end
                 UIDropDownMenu_AddButton(info, level)
             end
         end
     end
+    menuRefreshFrame:SetScript("OnUpdate", function()
+        this:Hide()
+        UIDropDownMenu_Initialize(filterFrame, InitFilterMenu)
+    end)
     UIDropDownMenu_Initialize(filterFrame, InitFilterMenu)
 
     UIDropDownMenu_SetWidth(dropdownWidth, filterFrame)

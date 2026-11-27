@@ -763,6 +763,22 @@ local function ScheduleAtlasPriming()
     end)
 end
 
+local bossLootDelayFrame = CreateFrame("Frame")
+bossLootDelayFrame:Hide()
+bossLootDelayFrame:SetScript("OnUpdate", function()
+    this.timer = this.timer + arg1
+    if this.timer >= 0.1 then
+        local lootID   = this.lootID
+        local bossName = this.bossName
+        this.lootID    = nil
+        this.bossName  = nil
+        this:Hide()
+        if lootID and AtlasLoot_ShowBossLoot then
+            pcall(AtlasLoot_ShowBossLoot, lootID, bossName, AtlasFrame)
+        end
+    end
+end)
+
 -- Atlas Integration (supports Atlas-CFM and Atlas-TW)
 function MMM:OnMarkerClick(marker, button)
     -- Dungeons, raids, world bosses: open Atlas
@@ -856,16 +872,10 @@ function MMM:OnMarkerClick(marker, button)
                 if marker.markerType == "WORLDBOSS" and AtlasLoot_ShowBossLoot then
                     local lootID = ATLASLOOT_WORLD_BOSS[marker.nameEN]
                     if lootID then
-                        local bossName = marker.nameEN
-                        local delayFrame = CreateFrame("Frame")
-                        delayFrame.timer = 0
-                        delayFrame:SetScript("OnUpdate", function()
-                            this.timer = this.timer + arg1
-                            if this.timer >= 0.1 then
-                                this:SetScript("OnUpdate", nil)
-                                pcall(AtlasLoot_ShowBossLoot, lootID, bossName, AtlasFrame)
-                            end
-                        end)
+                        bossLootDelayFrame.timer    = 0
+                        bossLootDelayFrame.lootID   = lootID
+                        bossLootDelayFrame.bossName = marker.nameEN
+                        bossLootDelayFrame:Show()
                     end
                 end
                 return
