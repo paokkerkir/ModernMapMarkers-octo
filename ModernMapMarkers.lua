@@ -269,25 +269,27 @@ local function StopPinHighlight(pin)
     end
 end
 
+local function PinHighlight_OnUpdate()
+    this.findTimer = this.findTimer + arg1
+    local progress = this.findTimer / FIND_HIGHLIGHT_DURATION
+    if progress >= 1 then
+        StopPinHighlight(this)
+    else
+        local envelope = 1 - progress
+        local pulse    = (math.sin(progress * 3.14159 * 8) + 1) * 0.5
+        local sz = this.originalSize
+            + (this.originalSize * (FIND_SIZE_MULTIPLIER - 1)) * pulse * envelope
+        this:SetWidth(sz)
+        this:SetHeight(sz)
+        this.highlight:SetAlpha(FIND_HIGHLIGHT_ALPHA * pulse * envelope)
+    end
+end
+
 local function StartPinHighlight(pin)
     if not pin or not pin.originalSize then return end
     pin.highlight:SetAlpha(0)
     pin.findTimer = 0
-    pin:SetScript("OnUpdate", function()
-        this.findTimer = this.findTimer + arg1
-        local progress = this.findTimer / FIND_HIGHLIGHT_DURATION
-        if progress >= 1 then
-            StopPinHighlight(this)
-        else
-            local envelope = 1 - progress
-            local pulse    = (math.sin(progress * 3.14159 * 8) + 1) * 0.5
-            local sz = this.originalSize
-                + (this.originalSize * (FIND_SIZE_MULTIPLIER - 1)) * pulse * envelope
-            this:SetWidth(sz)
-            this:SetHeight(sz)
-            this.highlight:SetAlpha(FIND_HIGHLIGHT_ALPHA * pulse * envelope)
-        end
-    end)
+    pin:SetScript("OnUpdate", PinHighlight_OnUpdate)
 end
 
 local function MatchesPendingHighlight(pinNameEN, target)
