@@ -102,7 +102,11 @@ local function ApplyDropdownLayer(strata, base, hidePanel)
     if findPanel then
         if hidePanel and findPanel:IsVisible() then findPanel:Hide() end
         findPanel:SetFrameStrata(strata)
-        if findPanel.backdrop then findPanel.backdrop:SetFrameStrata(strata) end
+        findPanel:SetFrameLevel(base + 5)
+        if findPanel.backdrop then
+            findPanel.backdrop:SetFrameStrata(strata)
+            findPanel.backdrop:SetFrameLevel(math.max(base + 4, 0))
+        end
     end
 end
 
